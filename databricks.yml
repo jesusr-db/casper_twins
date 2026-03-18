@@ -1,0 +1,124 @@
+bundle:
+  name: twins-digital-twin
+
+workspace:
+  profile: DEFAULT
+
+resources:
+  apps:
+    twins-app:
+      name: twins-digital-twin
+      description: "Real-time delivery operations digital twin — DPZ demo"
+      source_code_path: .
+      config:
+        command:
+          - uvicorn
+          - backend.main:app
+          - --host=0.0.0.0
+          - --port=8000
+        env:
+          - name: LAKEBASE_INSTANCE
+            value: twins
+          - name: LAKEBASE_DATABASE
+            value: databricks_postgres
+      permissions:
+        - user_name: jesus.rodriguez@databricks.com
+          level: CAN_MANAGE
+
+  pipelines:
+    orders-enriched:
+      name: "twins-orders-enriched"
+      catalog: vdm_classic_rikfy0_catalog
+      schema: lakeflow
+      serverless: true
+      continuous: true
+      libraries:
+        - file:
+            path: pipelines/orders_enriched.sql
+      configuration:
+        app: twins
+        source_catalog: vdm_classic_rikfy0_catalog
+      tags:
+        app: twins
+      permissions:
+        - user_name: jesus.rodriguez@databricks.com
+          level: CAN_MANAGE
+
+  jobs:
+    setup-lakebase:
+      name: "twins-setup-lakebase"
+      description: >
+        Multi-task infrastructure setup: triggers pipeline, provisions Lakebase,
+        creates synced tables, then finalizes with indexes/grants/verify.
+        Each task can be retried independently. Idempotent — safe to re-run.
+      tags:
+        app: twins
+      tasks:
+        - task_key: trigger_pipeline
+          spark_python_task:
+            python_file: setup/trigger_pipeline.py
+          environment_key: setup_env
+        - task_key: provision_lakebase
+          depends_on:
+            - task_key: trigger_pipeline
+          spark_python_task:
+            python_file: setup/provision_lakebase.py
+          environment_key: setup_env
+        - task_key: create_syncs
+          depends_on:
+            - task_key: provision_lakebase
+          spark_python_task:
+            python_file: setup/create_syncs.py
+          environment_key: setup_env
+        - task_key: finalize
+          depends_on:
+            - task_key: create_syncs
+          spark_python_task:
+            python_file: setup/finalize.py
+          environment_key: setup_env
+      environments:
+        - environment_key: setup_env
+          spec:
+            client: "1"
+            dependencies:
+              - "psycopg2-binary>=2.9.0"
+              - "databricks-sdk>=0.49.0"
+      run_as:
+        user_name: jesus.rodriguez@databricks.com
+      permissions:
+        - user_name: jesus.rodriguez@databricks.com
+          level: CAN_MANAGE
+
+    destroy-lakebase:
+      name: "twins-destroy-lakebase"
+      description: >
+        Tears down all resources created by setup-lakebase that are not managed
+        by DAB: synced tables, UC catalog, Lakebase instance, and DLT-created
+        tables. Idempotent — safe to re-run.
+      tags:
+        app: twins
+      tasks:
+        - task_key: destroy
+          spark_python_task:
+            python_file: setup/destroy_lakebase.py
+          environment_key: destroy_env
+      environments:
+        - environment_key: destroy_env
+          spec:
+            client: "1"
+            dependencies:
+              - "databricks-sdk>=0.49.0"
+      run_as:
+        user_name: jesus.rodriguez@databricks.com
+      permissions:
+        - user_name: jesus.rodriguez@databricks.com
+          level: CAN_MANAGE
+
+sync:
+  include:
+    - "pipelines/**"
+    - "backend/**"
+    - "frontend/dist/**"
+    - "setup/**"
+    - "app.yaml"
+    - "requirements.txt"

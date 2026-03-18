@@ -1,0 +1,23 @@
+-- =============================================================================
+-- Lakebase Sync Setup — Reference Documentation
+-- =============================================================================
+-- This file documents the Lakebase configuration applied by setup_lakebase.py.
+-- Do NOT run this file directly — use: databricks bundle run setup-lakebase
+--
+-- Architecture (STREAMING):
+--   caspers-kitchens DAB → all_events (streaming table, continuous)
+--     → twins pipeline (CONTINUOUS mode)
+--       → driver_positions (STREAMING TABLE, APPLY CHANGES SCD1) ← live map
+--       → orders_enriched (MATERIALIZED VIEW, continuously refreshed) ← order list
+--     → Lakebase syncs (CONTINUOUS policy) → Postgres → FastAPI app
+--
+-- Instance: twins (Provisioned CU_1)
+-- UC Catalog: twins_lakebase (mapped to instance)
+-- Database: databricks_postgres (default)
+-- Tables synced: 4
+--   - simulator.locations          (SNAPSHOT — static reference data)
+--   - lakeflow.driver_positions    (CONTINUOUS — live driver locations, APPLY CHANGES)
+--   - lakeflow.orders_enriched     (CONTINUOUS — order lifecycle state, MV)
+--   - lakeflow.all_events          (CONTINUOUS — raw event stream for order detail)
+-- Indexes: 5
+-- =============================================================================

@@ -1,0 +1,145 @@
+/* =============================================================================
+   Domino's Digital Twin — Dark Theme
+   Brand: DPZ Red #E31837, DPZ Blue #006491, Dark Navy #0B1D3A
+   ============================================================================= */
+
+:root {
+  /* DPZ Brand Colors */
+  --dpz-red: #E31837;
+  --dpz-blue: #006491;
+  --dpz-white: #FFFFFF;
+  --dpz-navy: #0B1D3A;
+
+  /* Stage Colors */
+  --stage-new: #FFB800;
+  --stage-kitchen: #FF6B35;
+  --stage-ready: #006491;
+  --stage-transit: #E31837;
+  --stage-delivered: #4CAF50;
+
+  /* Surface Colors */
+  --surface-base: #0B1D3A;
+  --surface-elevated: #0D2240;
+  --surface-card: #132B4D;
+  --border-default: #1E3A5F;
+  --border-active: rgba(255, 255, 255, 0.2);
+
+  /* Text Colors */
+  --text-primary: #FFFFFF;
+  --text-secondary: #8899AA;
+  --text-muted: #5A6B7C;
+
+  /* Playback accent */
+  --playback-primary: #6B3FA0;
+  --playback-secondary: #9B6FD0;
+
+  /* Feedback */
+  --success: #4CAF50;
+  --warning: #FF9800;
+  --error: #F44336;
+
+  /* Typography */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+}
+
+/* === Reset === */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-family);
+  background: var(--surface-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* === Utility Classes === */
+.text-muted { color: var(--text-secondary); }
+.text-xs { font-size: 10px; }
+.text-sm { font-size: 12px; }
+.text-base { font-size: 14px; }
+.text-lg { font-size: 18px; }
+.text-xl { font-size: 22px; }
+.text-2xl { font-size: 28px; }
+.font-bold { font-weight: 700; }
+.font-semibold { font-weight: 600; }
+.font-medium { font-weight: 500; }
+.uppercase { text-transform: uppercase; }
+.tracking-wide { letter-spacing: 0.8px; }
+
+/* === Animations === */
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); }
+}
+
+@keyframes dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(227, 24, 55, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(227, 24, 55, 0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* === Scrollbar === */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--surface-elevated); }
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+/* === MapLibre Overrides === */
+.maplibregl-popup-content {
+  background: var(--surface-card) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-default) !important;
+  border-radius: var(--radius-md) !important;
+  padding: var(--spacing-sm) var(--spacing-md) !important;
+  font-family: var(--font-family) !important;
+  font-size: 12px !important;
+}
+.maplibregl-popup-tip {
+  border-top-color: var(--surface-card) !important;
+}

@@ -1,0 +1,27 @@
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Databricks
+.databricks/
+.bundle/
+
+# Root node_modules (test scaffolding)
+node_modules/
+
+# Test artifacts
+test-screenshot-*.png
+twins-test-*.png
+test-app.js
+package.json
+package-lock.json
+
+# Internal agent/Claude tooling
+.agent-team/
+.superpowers/
+.claude/
