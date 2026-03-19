@@ -12,6 +12,7 @@ import json
 import logging
 import random
 import uuid
+from datetime import datetime, timedelta
 
 import psycopg2
 from faker import Faker
@@ -108,7 +109,6 @@ def _assign_persona(row: dict, max_last_order: str) -> str:
         # A rough heuristic: if the last_order string is < max_last_order minus ~30 days
         # We'll do a proper comparison using Python datetime
         try:
-            from datetime import datetime, timedelta
             fmt = "%Y-%m-%d %H:%M:%S.%f"
             # Handle both "YYYY-MM-DD HH:MM:SS.000" and potential variations
             last_dt = datetime.strptime(last_order[:23], fmt[:23] if len(last_order) >= 23 else "%Y-%m-%d %H:%M:%S")
@@ -160,14 +160,13 @@ def _generate_customer(row: dict, persona: str) -> tuple[dict, dict]:
     loyalty_join_date = None
     if is_loyalty and row["first_order"] and row["last_order"]:
         try:
-            from datetime import datetime
             fmt = "%Y-%m-%d %H:%M:%S"
             first_dt = datetime.strptime(str(row["first_order"])[:19], fmt)
             last_dt = datetime.strptime(str(row["last_order"])[:19], fmt)
             if first_dt < last_dt:
                 delta = (last_dt - first_dt).days
                 join_offset = rng.randint(0, max(delta, 1))
-                join_dt = first_dt + __import__("datetime").timedelta(days=join_offset)
+                join_dt = first_dt + timedelta(days=join_offset)
                 loyalty_join_date = join_dt.strftime("%Y-%m-%d")
             else:
                 loyalty_join_date = str(row["first_order"])[:10]
