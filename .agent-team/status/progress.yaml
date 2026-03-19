@@ -1,7 +1,7 @@
 project: twins-digital-twin
 created_at: "2026-03-16T16:30:00Z"
-overall_status: completed
-feature: synthetic-customer-dataset
+overall_status: in_progress
+feature: cx-panel
 
 phases:
   # --- Original build phases (completed) ---
@@ -77,3 +77,20 @@ phases:
       - setup/config.py (3 SYNCS + 3 indexes)
       - setup/finalize.py (grants if needed)
       - .agent-team/status/qa-phase2.md
+
+  # --- Feature: cx-panel ---
+  - id: "1-cx"
+    name: CX Implementation
+    status: in_progress
+    steps:
+      read_phase_config: completed
+      resolve_contracts: completed
+      dispatch_agents: in_progress
+    agents:
+      app-developer: {status: dispatched}
+
+  - id: "2-cx"
+    name: Verification
+    status: pending
+    agents:
+      qa-engineer: {status: pending}
