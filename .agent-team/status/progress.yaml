@@ -1,0 +1,69 @@
+project: twins-digital-twin
+created_at: "2026-03-16T16:30:00Z"
+overall_status: in_progress
+feature: synthetic-customer-dataset
+
+phases:
+  # --- Original build phases (completed) ---
+  - id: 0
+    name: Domain Research
+    status: completed
+    completed_at: "2026-03-16T17:00:00Z"
+    agents:
+      food-delivery-sme: {status: DONE, merged: true}
+    qa_results: {attempt: 1, result: PASS}
+
+  - id: 1
+    name: Data Pipeline & UI Design
+    status: completed
+    completed_at: "2026-03-16T18:00:00Z"
+    agents:
+      data-engineer: {status: DONE, merged: true}
+      ui-ux-analyst:  {status: DONE, merged: true}
+    qa_results: {attempt: 1, result: PASS}
+
+  - id: 2
+    name: Application Build
+    status: completed
+    completed_at: "2026-03-16T19:30:00Z"
+    agents:
+      app-developer: {status: DONE, merged: true}
+      qa-engineer:   {status: DONE, merged: true}
+    qa_results: {attempt: 1, result: PASS}
+
+  - id: 3
+    name: Deploy & Final QA
+    status: completed
+    completed_at: "2026-03-16T22:44:00Z"
+    agents:
+      deploy-engineer: {status: DONE, merged: true}
+      qa-engineer:     {status: DONE, merged: true}
+    qa_results: {attempt: 1, result: PASS}
+
+  # --- Feature: synthetic-customer-dataset ---
+  - id: "1-customers"
+    name: Customer Data Generation & Pipeline
+    status: in_progress
+    steps:
+      read_phase_config: completed
+      resolve_contracts: completed
+      dispatch_agents: in_progress
+    agents:
+      data-engineer: {status: dispatched}
+    outputs:
+      - setup/generate_customers.py
+      - vdm_classic_rikfy0_catalog.simulator.customers
+      - vdm_classic_rikfy0_catalog.simulator.customer_address_index
+      - pipelines/orders_enriched.sql (order_customer_map added)
+
+  - id: "2-customers"
+    name: DAB Integration & QA
+    status: pending
+    agents:
+      deploy-engineer: {status: pending}
+      qa-engineer:     {status: pending}
+    outputs:
+      - databricks.yml (Task 5 + faker)
+      - setup/config.py (3 SYNCS + 3 indexes)
+      - setup/finalize.py (grants if needed)
+      - .agent-team/status/qa-phase2.md
