@@ -81,16 +81,37 @@ phases:
   # --- Feature: cx-panel ---
   - id: "1-cx"
     name: CX Implementation
-    status: in_progress
+    status: completed
+    completed_at: "2026-03-19"
     steps:
       read_phase_config: completed
       resolve_contracts: completed
-      dispatch_agents: in_progress
+      dispatch_agents: completed
+      await_agents: completed
+      merge_worktrees: completed
+      qa_gate: completed
     agents:
-      app-developer: {status: dispatched}
+      app-developer: {status: DONE, merged: true}
+    qa_results: {attempt: 1, result: PASS}
+    outputs:
+      - setup/config.py (2 new SYNCS + 2 indexes, total 7/6)
+      - backend/routes/cx.py (4 endpoints)
+      - backend/main.py (cx router registered)
+      - tests/test_cx_routes.py (6 tests)
+      - frontend/src/types/index.ts (5 CX types)
+      - frontend/src/App.tsx (CX nav link + deep-link handler)
+      - frontend/src/main.tsx (React Router with /cx route)
+      - frontend/src/components/cx/CXPanel.tsx
+      - frontend/src/components/cx/CXGlobalView.tsx
+      - frontend/src/components/cx/CXStoreDetail.tsx
+      - frontend/src/components/cx/CXOverviewTab.tsx
+      - frontend/src/components/cx/CXComplaintsTab.tsx
+      - frontend/src/components/cx/CXRefundsTab.tsx
 
   - id: "2-cx"
     name: Verification
-    status: pending
+    status: in_progress
+    steps:
+      read_phase_config: in_progress
     agents:
       qa-engineer: {status: pending}
