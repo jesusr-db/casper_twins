@@ -102,9 +102,28 @@ async def get_order_detail(order_id: str):
     """
     event_rows = await pool.fetch(events_query, order_id)
 
+    # Fetch customer — join address index to customers via rounded delivery coords
+    customer_row = None
+    order_body_text = order_row.get("order_body")
+    if order_body_text:
+        customer_query = """
+            SELECT c.customer_id, c.name, c.persona, c.is_loyalty_member,
+                   c.loyalty_points, c.coupon_propensity
+            FROM simulator.customer_address_index_synced ai
+            JOIN simulator.customers_synced c ON ai.customer_id = c.customer_id
+            WHERE ai.rounded_lat = ROUND(CAST(($1::json)->>'customer_lat' AS numeric), 3)
+              AND ai.rounded_lon = ROUND(CAST(($1::json)->>'customer_lon' AS numeric), 3)
+            LIMIT 1
+        """
+        try:
+            customer_row = await pool.fetchrow(customer_query, order_body_text)
+        except Exception:
+            customer_row = None
+
     # Format response
     order = _format_order(order_row)
     order["route_body"] = _parse_json_field(order_row.get("route_body"))
+    order["customer"] = dict(customer_row) if customer_row else None
     order["events"] = [
         {
             "event_id": e["event_id"],

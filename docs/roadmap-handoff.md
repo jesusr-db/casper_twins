@@ -53,14 +53,8 @@
 - Predictive ETA (ML model integration)
 - Real store locations (Google Places API)
 
-### Synthetic Customer Dataset
-Generate a realistic customer population linked to the existing orders/delivery data:
-- **Discrete buyer personas** — e.g., weeknight regular, weekend splurger, lunch-only, occasional, lapsed — each with realistic order frequency, time-of-day, and item preferences
-- **Store affinity** — each customer is associated with a primary store; some cross-shop nearby stores
-- **Loyalty membership** — mix of loyalty members (with point accrual history) and non-members
-- **Coupon/offer usage** — segment of customers who consistently redeem offers; others who never do; some occasional redeemers
-- **Order body linkage** — synthetic customer records joinable to existing `orders_enriched_synced` by `customer_id` (new FK) or matched by delivery address/lat-lon
-- Output: Delta table in Unity Catalog, synced to Lakebase for app queries
+### Synthetic Customer Dataset ✅ Complete 2026-03-19
+103K customers generated from order history — personas, loyalty, coupon propensity, store affinity. Synced to Lakebase (`customers_synced`, `customer_address_index_synced`). Customer card shown in Order Drawer.
 
 ### Customer Experience
 - **Refund Manager** — track and process refund requests tied to order IDs; surface refund rate as a store KPI

@@ -70,6 +70,16 @@ export interface Order {
   order_total: number;
 }
 
+/** Synthetic customer linked to an order via delivery address */
+export interface CustomerInfo {
+  customer_id: string;
+  name: string;
+  persona: string;
+  is_loyalty_member: boolean;
+  loyalty_points: number;
+  coupon_propensity: "always" | "sometimes" | "never";
+}
+
 /** Full order detail (from detail endpoint) */
 export interface OrderDetail extends Order {
   kitchen_started_at: string | null;
@@ -78,6 +88,7 @@ export interface OrderDetail extends Order {
   driver_arrived_at: string | null;
   picked_up_at: string | null;
   route_body: RouteBody | null;
+  customer: CustomerInfo | null;
   events: OrderEvent[];
 }
 
