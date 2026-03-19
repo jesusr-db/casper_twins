@@ -138,3 +138,34 @@
 
 #### QA iterations
 - Attempt 1: PASS — all 5 checks passed (generate_customers.py validation, orders_enriched.sql validation, databricks.yml bundle validate, config.py sync/index counts, schema consistency)
+
+### Feature "Customer Experience Panel" — Phase 1-cx: CX Implementation (2026-03-19)
+
+#### What worked
+- app-developer: All 10 tasks completed in a single pass. The detailed implementation plan with exact code for every file eliminated ambiguity. Config.py syncs, backend endpoints, types, routing, and all 6 frontend components were built sequentially without rework.
+- Contract-driven development: The cx-panel.yaml contract defined 4 endpoints, 2 syncs, 6 components, and 5 types. Every artifact matched the contract exactly.
+- Test isolation pattern: Patching `backend.db.init_pool` and `backend.db.close_pool` at module-import time prevents Databricks auth during pytest collection. This pattern (established in Phase 2) continues to work reliably for new route tests.
+- Incremental frontend build: Creating all 6 CX components before running `npm run build` avoided intermediate TS errors from cross-component imports (CXPanel imports CXGlobalView/CXStoreDetail, CXStoreDetail imports the 3 tab components).
+
+#### What failed or needed fixing
+- pytest initially failed because `asyncpg` was not installed in the local venv. Fix: `pip install asyncpg fastapi uvicorn`. This is a recurring issue when testing backend code locally — the app dependencies are installed on the Databricks Apps runtime but not locally.
+- `.gitignore` blocked `.agent-team/status/progress.yaml` and `frontend/package.json`. Fix: `git add -f` for these files. The `.gitignore` is aggressive — it blocks the entire `.agent-team/` directory and potentially vendor files.
+- Context window ran out mid-session (after Task 9, before Task 10). The continuation summary preserved enough state to resume cleanly. The implementation plan's task-by-task structure made resumption trivial — just pick up at the next numbered task.
+
+#### Patterns to watch for
+- The SYNCS count in config.py is now 7 (5 original + 2 CX). The QA agent definition said 8 but the plan said 7. When QA specs and implementation plans disagree, the plan is authoritative — it was written after the agent definition.
+- All CX components use `document.createElement("style")` for component-scoped CSS, appended to `document.head`. This pattern is consistent with the existing codebase (Phase 2 app-developer used it) but creates global style pollution. Each component's styles are loaded once on first import and never cleaned up.
+- The `make_interval(days => $N::int)` pattern in cx.py is the correct Postgres syntax for parameterized interval construction. Do not use `INTERVAL '$N days'` — that treats the parameter as a string literal, not a bind variable.
+- `_validate_days()` in cx.py allows 0 (meaning "all time" — no date filter applied) but rejects negative values. This is tested by `test_cx_summary_days_zero_allowed` and `test_cx_summary_rejects_negative_days`.
+- React Router wraps the entire app in `<BrowserRouter>` in main.tsx. The existing `App` component previously used `useNavigate` internally — after this change, it gets its router context from the parent `<BrowserRouter>` rather than needing its own.
+
+### Feature "Customer Experience Panel" — Phase 2-cx: Verification (2026-03-19)
+
+#### What worked
+- All 7 QA checks passed on the first attempt. No rework needed.
+
+#### What failed or needed fixing
+- No failures.
+
+#### QA iterations
+- Attempt 1: PASS — all 7 checks passed (9 artifacts exist, SYNCS=7 correct per plan, cx router registered, 6 pytest pass, TS build succeeds, Router wired, no f-string SQL)
