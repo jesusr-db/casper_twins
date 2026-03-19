@@ -63,6 +63,20 @@ SYNCS = [
     #     ON ROUND(CAST((o.order_body::json)->>'customer_lat' AS numeric), 3) = ai.rounded_lat
     #     AND ROUND(CAST((o.order_body::json)->>'customer_lon' AS numeric), 3) = ai.rounded_lon
     #   JOIN simulator.customers_synced c ON ai.customer_id = c.customer_id
+    # Complaints — LLM-generated customer complaint records
+    {
+        "source": f"{SOURCE_CATALOG}.complaints.raw_complaints",
+        "name": f"{SOURCE_CATALOG}.complaints.complaints_synced",
+        "policy": SyncedTableSchedulingPolicy.CONTINUOUS,
+        "pk": ["complaint_id"],
+    },
+    # Refund recommendations — AI agent output, batch-generated
+    {
+        "source": f"{SOURCE_CATALOG}.recommender.refund_recommendations",
+        "name": f"{SOURCE_CATALOG}.recommender.refund_recommendations_synced",
+        "policy": SyncedTableSchedulingPolicy.SNAPSHOT,
+        "pk": ["order_id"],
+    },
 ]
 
 # Postgres view over all_events_synced (CONTINUOUS sync) that replicates the
@@ -159,6 +173,12 @@ CREATE INDEX IF NOT EXISTS idx_customers_location
 
 CREATE INDEX IF NOT EXISTS idx_address_index_lat_lon
   ON simulator.customer_address_index_synced (rounded_lat, rounded_lon);
+
+CREATE INDEX IF NOT EXISTS idx_complaints_order_id
+  ON complaints.complaints_synced (order_id);
+
+CREATE INDEX IF NOT EXISTS idx_refunds_order_id
+  ON recommender.refund_recommendations_synced (order_id);
 """
 
 
