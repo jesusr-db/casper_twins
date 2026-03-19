@@ -133,3 +133,25 @@ SELECT
 FROM current_stage cs
 LEFT JOIN stage_timestamps st ON cs.order_id = st.order_id
 LEFT JOIN latest_ping_per_order lp ON cs.order_id = lp.order_id;
+
+
+-- -----------------------------------------------------------------------------
+-- TABLE 3: order_customer_map
+-- Maps each order to its customer via address index lookup.
+-- Streaming — processes new orders as they arrive.
+-- -----------------------------------------------------------------------------
+CREATE OR REFRESH STREAMING TABLE order_customer_map
+COMMENT 'Maps orders to customers via delivery address proximity. LEFT JOIN ensures unmatched orders get customer_id=unknown.'
+TBLPROPERTIES (
+  'quality' = 'gold'
+)
+AS
+SELECT
+  e.order_id,
+  e.location_id,
+  COALESCE(c.customer_id, 'unknown') AS customer_id
+FROM STREAM(${source_catalog}.lakeflow.all_events) e
+LEFT JOIN ${source_catalog}.simulator.customer_address_index c
+  ON ROUND(CAST(GET_JSON_OBJECT(e.body, '$.customer_lat') AS DOUBLE), 3) = c.rounded_lat
+  AND ROUND(CAST(GET_JSON_OBJECT(e.body, '$.customer_lon') AS DOUBLE), 3) = c.rounded_lon
+WHERE e.event_type = 'order_created';
