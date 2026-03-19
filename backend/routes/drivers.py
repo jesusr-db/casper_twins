@@ -51,6 +51,7 @@ async def list_active_drivers(market_id: str):
         WHERE dp.location_id = $1
           AND dp.loc_lat IS NOT NULL
           AND dp.loc_lon IS NOT NULL
+          AND oe.delivered_at IS NULL
           AND dp.ts >= (
             SELECT TO_CHAR(
               MAX(ts)::timestamp - INTERVAL '2 hours',

@@ -1,8 +1,10 @@
 import React, { useRef } from "react";
-import type { Market } from "../types";
+import type { Market, MarketGroup as MarketGroupType } from "../types";
+import { MarketGroup } from "./MarketGroup";
 
 interface MarketTabsProps {
   markets: Market[];
+  groups?: MarketGroupType[];
   activeMarketId: string;
   onSelect: (marketId: string) => void;
 }
@@ -16,6 +18,7 @@ function shortName(name: string): string {
 
 export const MarketTabs: React.FC<MarketTabsProps> = ({
   markets,
+  groups,
   activeMarketId,
   onSelect,
 }) => {
@@ -30,18 +33,27 @@ export const MarketTabs: React.FC<MarketTabsProps> = ({
         aria-label="Market selector"
         ref={scrollRef}
       >
-        {markets.map((market) => (
-          <button
-            key={market.location_id}
-            className={`market-tab ${String(market.location_id) === String(activeMarketId) ? "active" : ""}`}
-            role="tab"
-            aria-selected={String(market.location_id) === String(activeMarketId)}
-            onClick={() => onSelect(String(market.location_id))}
-          >
-            {shortName(market.name)}
-            <span className="market-tab-badge">{market.active_orders}</span>
-          </button>
-        ))}
+        {groups && groups.length > 0
+          ? groups.map((group) => (
+              <MarketGroup
+                key={group.cityName}
+                group={group}
+                activeMarketId={activeMarketId}
+                onSelect={onSelect}
+              />
+            ))
+          : markets.map((market) => (
+              <button
+                key={market.location_id}
+                className={`market-tab ${String(market.location_id) === String(activeMarketId) ? "active" : ""}`}
+                role="tab"
+                aria-selected={String(market.location_id) === String(activeMarketId)}
+                onClick={() => onSelect(String(market.location_id))}
+              >
+                {shortName(market.name)}
+                <span className="market-tab-badge">{market.active_orders}</span>
+              </button>
+            ))}
       </div>
       <div className="market-tabs-fade-right" />
     </div>
@@ -60,13 +72,14 @@ style.textContent = `
 
   .market-tabs {
     display: flex;
-    gap: 2px;
+    gap: 4px;
     background: var(--surface-card);
     border-radius: var(--radius-md);
     padding: 3px;
     overflow-x: auto;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
+    align-items: flex-start;
   }
 
   .market-tabs::-webkit-scrollbar {

@@ -13,6 +13,13 @@ export interface Market {
   drivers_out: number;
 }
 
+/** City/region grouping for market tabs */
+export interface MarketGroup {
+  cityName: string;
+  markets: Market[];
+  totalActiveOrders: number;
+}
+
 /** Aggregated KPIs for a market */
 export interface MarketKpis {
   active_orders: number;
@@ -55,6 +62,9 @@ export interface Order {
   current_stage: string;
   created_at: string;
   delivered_at: string | null;
+  kitchen_started_at: string | null;
+  driver_arrived_at: string | null;
+  picked_up_at: string | null;
   order_body: OrderBody | null;
   latest_ping: LatestPing | null;
   order_total: number;
@@ -121,6 +131,16 @@ export const STAGE_MAP: Record<string, PipelineStage> = {
   driver_ping: "In Transit",
   delivered: "Delivered",
 };
+
+/**
+ * Authoritative stage for an order.
+ * delivered_at takes precedence over current_stage to handle sync lag
+ * where current_stage is still 'driver_ping' but delivery has landed.
+ */
+export function getOrderStage(order: { current_stage: string; delivered_at: string | null }): PipelineStage {
+  if (order.delivered_at) return "Delivered";
+  return (STAGE_MAP[order.current_stage] as PipelineStage) || "New";
+}
 
 /** Stage colors from the domain playbook */
 export const STAGE_COLORS: Record<PipelineStage, string> = {

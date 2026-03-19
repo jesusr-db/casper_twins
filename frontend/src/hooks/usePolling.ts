@@ -44,9 +44,8 @@ export function usePolling(
 
   useEffect(() => {
     if (!enabled) {
-      // Clean up when disabled
       if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+        clearTimeout(intervalRef.current);
         intervalRef.current = null;
       }
       if (abortControllerRef.current) {
@@ -56,15 +55,23 @@ export function usePolling(
       return;
     }
 
-    // Immediate first fetch
-    doFetch();
+    let cancelled = false;
 
-    // Set up interval
-    intervalRef.current = window.setInterval(doFetch, interval);
+    // Poll-after-completion: wait for the fetch to finish, THEN schedule
+    // the next one. This prevents aborting slow in-flight requests.
+    const loop = async () => {
+      await doFetch();
+      if (!cancelled) {
+        intervalRef.current = window.setTimeout(loop, interval);
+      }
+    };
+
+    loop();
 
     return () => {
+      cancelled = true;
       if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+        clearTimeout(intervalRef.current);
         intervalRef.current = null;
       }
       if (abortControllerRef.current) {

@@ -112,6 +112,9 @@ export function usePlayback(): [PlaybackState, PlaybackActions] {
             current_stage: event.event_type,
             created_at: event.ts,
             delivered_at: null,
+            kitchen_started_at: null,
+            driver_arrived_at: null,
+            picked_up_at: null,
             order_body: body
               ? {
                   customer_lat: (body.customer_lat as number) || 0,

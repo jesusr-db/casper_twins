@@ -9,13 +9,59 @@ import { usePolling } from "./hooks/usePolling";
 import { usePlayback } from "./hooks/usePlayback";
 import type {
   Market,
+  MarketGroup,
   MarketKpis,
   Order,
   Driver,
   OrderDetail,
   AppMode,
 } from "./types";
-import { STAGE_MAP } from "./types";
+import { STAGE_MAP, getOrderStage } from "./types";
+import { OrderList } from "./components/OrderList";
+import { StoreDetailPanel } from "./components/StoreDetailPanel";
+import type { PipelineStage } from "./types";
+
+const CITY_GROUPS: Record<string, string> = {
+  sf: "SF Bay Area",
+  sv: "SF Bay Area",
+  sv2: "SF Bay Area",
+  paloalto: "SF Bay Area",
+  "palo-alto": "SF Bay Area",
+  pa: "SF Bay Area",
+  seattle: "Pacific Northwest",
+  bellevue: "Pacific Northwest",
+  chicago: "Midwest",
+  chi: "Midwest",
+};
+
+function groupMarketsByCity(markets: Market[]): MarketGroup[] {
+  const groupMap = new Map<string, Market[]>();
+
+  for (const market of markets) {
+    const code = market.location_code.toLowerCase().replace(/[^a-z0-9-]/g, "");
+    // Try to match by prefix or known codes
+    let cityName = "Other";
+    for (const [key, city] of Object.entries(CITY_GROUPS)) {
+      if (code.startsWith(key) || code.includes(key)) {
+        cityName = city;
+        break;
+      }
+    }
+    // Fallback: use first word of market name
+    if (cityName === "Other") {
+      cityName = market.name.split(" ")[0];
+    }
+
+    if (!groupMap.has(cityName)) groupMap.set(cityName, []);
+    groupMap.get(cityName)!.push(market);
+  }
+
+  return Array.from(groupMap.entries()).map(([cityName, mks]) => ({
+    cityName,
+    markets: mks,
+    totalActiveOrders: mks.reduce((sum, m) => sum + m.active_orders, 0),
+  }));
+}
 
 const App: React.FC = () => {
   // === State ===
@@ -34,6 +80,7 @@ const App: React.FC = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedStage, setSelectedStage] = useState<string | null>(null);
   const [isFollowingDriver, setIsFollowingDriver] = useState(false);
+  const [rightRailMode, setRightRailMode] = useState<null | "order" | "store">(null);
 
   // Playback
   const [playbackState, playbackActions] = usePlayback();
@@ -101,12 +148,22 @@ const App: React.FC = () => {
       ? playbackState.stageCounts
       : currentOrders.reduce(
           (acc, order) => {
-            const stage = STAGE_MAP[order.current_stage] || "New";
+            const stage = getOrderStage(order);
             acc[stage] = (acc[stage] || 0) + 1;
             return acc;
           },
           {} as Record<string, number>
         );
+
+  // Derive count KPIs from the orders array so they always match the pipeline.
+  // avg_delivery_time and todays_revenue still come from the backend.
+  const derivedKpis = kpis
+    ? {
+        ...kpis,
+        active_orders: currentOrders.filter((o) => getOrderStage(o) !== "Delivered").length,
+        drivers_out: currentOrders.filter((o) => getOrderStage(o) === "In Transit").length,
+      }
+    : null;
 
   // === Handlers ===
   const handleMarketSelect = useCallback(
@@ -127,6 +184,7 @@ const App: React.FC = () => {
     async (orderId: string) => {
       setSelectedOrderId(orderId);
       setIsDrawerOpen(true);
+      setRightRailMode("order");
       setIsFollowingDriver(false);
 
       try {
@@ -147,6 +205,7 @@ const App: React.FC = () => {
     setSelectedOrderId(null);
     setOrderDetail(null);
     setIsFollowingDriver(false);
+    setRightRailMode(null);
   }, []);
 
   const handleFollowDriver = useCallback((orderId: string) => {
@@ -162,6 +221,13 @@ const App: React.FC = () => {
       handleDrawerClose();
     }
   }, [isDrawerOpen, handleDrawerClose]);
+
+  const handleStoreClick = useCallback(() => {
+    setRightRailMode((prev) => (prev === "store" ? null : "store"));
+    setIsDrawerOpen(false);
+    setSelectedOrderId(null);
+    setOrderDetail(null);
+  }, []);
 
   const handleModeToggle = useCallback(
     (newMode: AppMode) => {
@@ -205,6 +271,8 @@ const App: React.FC = () => {
     (m) => String(m.location_id) === String(activeMarketId)
   ) || null;
 
+  const marketGroups = groupMarketsByCity(markets);
+
   return (
     <div className="app-root">
       {/* Top Bar */}
@@ -219,6 +287,7 @@ const App: React.FC = () => {
 
         <MarketTabs
           markets={markets}
+          groups={marketGroups}
           activeMarketId={activeMarketId}
           onSelect={handleMarketSelect}
         />
@@ -242,7 +311,7 @@ const App: React.FC = () => {
 
       {/* KPI Bar or Playback Controls */}
       {mode === "live" ? (
-        <KpiBar kpis={kpis} isLoading={!kpis && !!activeMarketId} />
+        <KpiBar kpis={derivedKpis} isLoading={!kpis && !!activeMarketId} />
       ) : (
         <PlaybackControls
           playbackTime={playbackState.currentTime}
@@ -259,17 +328,40 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Map */}
-      <MapView
-        market={activeMarket || null}
-        drivers={currentDrivers}
-        orders={currentOrders}
-        selectedOrderId={selectedOrderId}
-        stageFilter={selectedStage}
-        isFollowingDriver={isFollowingDriver}
-        onDriverClick={handleDriverClick}
-        onMapClick={handleMapClick}
-      />
+      {/* Map + Stage Drill-Down */}
+      <div className="map-and-list-container">
+        {selectedStage && selectedStage !== "Delivered" && (
+          <OrderList
+            stage={selectedStage as PipelineStage}
+            orders={currentOrders}
+            onOrderClick={handleDriverClick}
+            onClose={() => setSelectedStage(null)}
+          />
+        )}
+        <MapView
+          market={activeMarket || null}
+          drivers={currentDrivers}
+          orders={currentOrders}
+          selectedOrderId={selectedOrderId}
+          stageFilter={selectedStage}
+          isFollowingDriver={isFollowingDriver}
+          onDriverClick={handleDriverClick}
+          onMapClick={handleMapClick}
+          onStoreClick={handleStoreClick}
+        />
+        {rightRailMode === "store" && activeMarket && (
+          <StoreDetailPanel
+            market={activeMarket}
+            kpis={kpis}
+            orders={currentOrders}
+            onClose={() => setRightRailMode(null)}
+            onStageClick={(stage) => {
+              setSelectedStage(stage);
+              setRightRailMode(null);
+            }}
+          />
+        )}
+      </div>
 
       {/* Pipeline */}
       <OrderPipeline
@@ -281,7 +373,7 @@ const App: React.FC = () => {
       {/* Order Drawer */}
       <OrderDrawer
         order={orderDetail}
-        isOpen={isDrawerOpen}
+        isOpen={isDrawerOpen && rightRailMode === "order"}
         onClose={handleDrawerClose}
         onFollowDriver={handleFollowDriver}
       />
@@ -384,6 +476,14 @@ style.textContent = `
     background: var(--playback-primary);
     color: white;
     border-color: var(--playback-primary);
+  }
+
+  .map-and-list-container {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
 `;
 document.head.appendChild(style);

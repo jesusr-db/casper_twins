@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import maplibregl from "maplibre-gl";
 import type { Market, Driver, Order } from "../types";
-import { STAGE_MAP } from "../types";
+import { getOrderStage } from "../types";
 
 /** Return true only when both values are finite numbers (not NaN, not Infinity). */
 function isValidLngLat(lng: unknown, lat: unknown): boolean {
@@ -17,15 +17,23 @@ interface MapViewProps {
   isFollowingDriver: boolean;
   onDriverClick: (orderId: string) => void;
   onMapClick: () => void;
+  onStoreClick?: () => void;
 }
 
 const TILE_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
 // Stage colors for driver markers
-const DRIVER_COLOR_TRANSIT = "#E31837";
-const DRIVER_COLOR_DELIVERED = "#4CAF50";
+const DRIVER_COLOR_TRANSIT = "#E31837";   // red  — heading to customer
+const DRIVER_COLOR_CLOSE   = "#FF8C00";   // orange — almost at customer (≥80%)
+const DRIVER_COLOR_DELIVERED = "#4CAF50"; // green — delivered pin
 const STORE_COLOR = "#E31837";
-const CUSTOMER_COLOR = "#FFB800";
+const CUSTOMER_COLOR = "#FFB800"; // kept for legend CSS reference
+
+/** Color a driver dot by how far along the delivery route they are. */
+function driverColor(progress_pct: number | null | undefined): string {
+  if (progress_pct != null && progress_pct >= 80) return DRIVER_COLOR_CLOSE;
+  return DRIVER_COLOR_TRANSIT;
+}
 
 export const MapView: React.FC<MapViewProps> = ({
   market,
@@ -36,6 +44,7 @@ export const MapView: React.FC<MapViewProps> = ({
   isFollowingDriver,
   onDriverClick,
   onMapClick,
+  onStoreClick,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -115,6 +124,11 @@ export const MapView: React.FC<MapViewProps> = ({
     const storeEl = document.createElement("div");
     storeEl.className = "store-marker-pin";
     storeEl.innerHTML = "<span>D</span>";
+    storeEl.style.cursor = "pointer";
+    storeEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      onStoreClick?.();
+    });
 
     storeMarkerRef.current = new maplibregl.Marker({ element: storeEl })
       .setLngLat([market.lon, market.lat])
@@ -134,17 +148,24 @@ export const MapView: React.FC<MapViewProps> = ({
       const { loc_lon, loc_lat } = driver.latest_ping;
       if (!isValidLngLat(loc_lon, loc_lat)) continue;
 
+      // Skip if the order has been delivered (backend sync lag safety net)
+      const order = orders.find((o) => o.order_id === driver.order_id);
+      if (order && getOrderStage(order) === "Delivered") continue;
+
       activeDriverIds.add(driver.order_id);
       const existing = markersRef.current.get(driver.order_id);
+      const color = driverColor(driver.latest_ping.progress_pct);
 
       if (existing) {
-        // Smoothly update position
+        // Update position and color as progress changes
         existing.setLngLat([loc_lon, loc_lat]);
+        const dot = existing.getElement().querySelector(".driver-marker-dot") as HTMLElement | null;
+        if (dot) dot.style.background = color;
       } else {
         // Create new marker
         const el = document.createElement("div");
         el.className = "driver-marker-dot";
-        el.style.background = DRIVER_COLOR_TRANSIT;
+        el.style.background = color;
         el.title = `Order ${driver.order_id.slice(0, 6)}`;
 
         const label = document.createElement("div");
@@ -198,28 +219,30 @@ export const MapView: React.FC<MapViewProps> = ({
         el.style.display = "";
       } else {
         const order = orders.find((o) => o.order_id === id);
-        const orderStage = order ? (STAGE_MAP[order.current_stage] || "New") : "New";
+        const orderStage = order ? getOrderStage(order) : "New";
         el.style.display = stageFilter === orderStage ? "" : "none";
       }
     }
   }, [stageFilter, drivers, orders]);
 
-  // Update customer pins from orders
+  // Green delivered pins — show customer drop locations for recently-delivered orders.
+  // Count matches the "Delivered" pipeline stage badge.
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
 
-    const activeOrderIds = new Set<string>();
+    const deliveredIds = new Set<string>();
 
     for (const order of orders) {
+      if (getOrderStage(order) !== "Delivered") continue;
       if (!order.order_body) continue;
       const { customer_lon, customer_lat } = order.order_body;
       if (!isValidLngLat(customer_lon, customer_lat)) continue;
-      activeOrderIds.add(order.order_id);
+      deliveredIds.add(order.order_id);
 
       if (!customerMarkersRef.current.has(order.order_id)) {
         const el = document.createElement("div");
-        el.className = "customer-pin";
+        el.className = "delivered-pin";
 
         const marker = new maplibregl.Marker({ element: el })
           .setLngLat([customer_lon, customer_lat])
@@ -229,9 +252,9 @@ export const MapView: React.FC<MapViewProps> = ({
       }
     }
 
-    // Remove stale customer pins
+    // Remove pins for orders that aged out of the 60-min window
     for (const [id, marker] of customerMarkersRef.current.entries()) {
-      if (!activeOrderIds.has(id)) {
+      if (!deliveredIds.has(id)) {
         marker.remove();
         customerMarkersRef.current.delete(id);
       }
@@ -275,6 +298,24 @@ export const MapView: React.FC<MapViewProps> = ({
             {market.name} — {market.lat.toFixed(4)}, {market.lon.toFixed(4)}
           </span>
         )}
+      </div>
+      <div className="map-legend">
+        <div className="map-legend-item">
+          <span className="legend-store-pin">D</span>
+          <span>Store</span>
+        </div>
+        <div className="map-legend-item">
+          <span className="legend-driver-dot legend-driver-heading" />
+          <span>Heading out</span>
+        </div>
+        <div className="map-legend-item">
+          <span className="legend-driver-dot legend-driver-close" />
+          <span>Almost there</span>
+        </div>
+        <div className="map-legend-item">
+          <span className="legend-delivered-pin" />
+          <span>Delivered</span>
+        </div>
       </div>
     </div>
   );
@@ -350,12 +391,14 @@ style.textContent = `
     font-family: var(--font-family);
   }
 
-  .customer-pin {
-    width: 10px;
-    height: 10px;
-    background: ${CUSTOMER_COLOR};
-    border: 1px solid #FFFFFF;
-    border-radius: 50%;
+  .delivered-pin {
+    width: 14px;
+    height: 14px;
+    background: ${DRIVER_COLOR_DELIVERED};
+    border: 2px solid #FFFFFF;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    box-shadow: 0 1px 4px rgba(76, 175, 80, 0.5);
   }
 
   .map-info-overlay {
@@ -386,6 +429,72 @@ style.textContent = `
     border-radius: 50%;
     animation: pulse 2s infinite;
     display: inline-block;
+  }
+
+  .map-legend {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(4px);
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 10;
+  }
+
+  .map-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .legend-store-pin {
+    width: 18px;
+    height: 18px;
+    background: ${STORE_COLOR};
+    border: 2px solid #fff;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 7px;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .legend-driver-dot {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .legend-driver-heading {
+    background: ${DRIVER_COLOR_TRANSIT};
+  }
+
+  .legend-driver-close {
+    background: ${DRIVER_COLOR_CLOSE};
+  }
+
+  .legend-delivered-pin {
+    width: 14px;
+    height: 14px;
+    background: ${DRIVER_COLOR_DELIVERED};
+    border: 2px solid #fff;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    flex-shrink: 0;
+    box-shadow: 0 1px 4px rgba(76, 175, 80, 0.5);
   }
 `;
 document.head.appendChild(style);

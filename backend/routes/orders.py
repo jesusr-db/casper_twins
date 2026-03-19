@@ -54,11 +54,17 @@ async def list_market_orders(
             ORDER BY created_at DESC
         """
     else:
+        # Include active orders + orders delivered in the last 60 minutes
+        # so the pipeline "Delivered" stage shows recent completions.
         query = """
             SELECT order_id, location_id, current_stage, created_at,
                    delivered_at, order_body, latest_ping, order_total
             FROM lakeflow.orders_enriched_synced
-            WHERE location_id = $1 AND delivered_at IS NULL
+            WHERE location_id = $1
+              AND (
+                delivered_at IS NULL
+                OR delivered_at::timestamp >= NOW() - INTERVAL '60 minutes'
+              )
             ORDER BY created_at DESC
         """
 

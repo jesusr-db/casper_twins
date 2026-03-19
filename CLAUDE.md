@@ -82,13 +82,27 @@
 #### QA iterations
 - Attempt 1: PASS — all 5 checks passed (databricks.yml valid, frontend builds, bundle validates, security review, deployment succeeded)
 
----
+### Phase 4: Near-Term Features + Live QA (2026-03-18/19)
 
-## Remaining Steps to Go Live
+#### What worked
+- Feature delivery: All 3 PRD features (pipeline drill-down, store detail panel, market tab grouping) implemented and verified in a single session using tiered-execution. Per-task Sonnet subagents + Haiku mechanical tasks kept cost low.
+- `getOrderStage()` as single source of truth: Centralizing stage logic in one function (checking `delivered_at` before `current_stage`) fixed an entire class of sync-lag bugs across 6 components simultaneously.
+- Chrome DevTools MCP for live testing: Faster than Playwright for deployed app testing — snapshot + click loop caught real bugs (abort loop, 500 error) that unit tests would miss.
 
-1. **Provision Lakebase database**: Use the `databricks-lakebase` skill or MCP tool to create the `twins` database in catalog `caspersdev_jmr`
-2. **Set up sync pipelines**: Create the 3 Lakebase syncs (markets, orders, order_events) per `pipelines/lakebase_sync_setup.sql`
-3. **Create Postgres indexes**: Run the 4 CREATE INDEX statements after syncs are established
-4. **Add DLT SQL to pipeline**: Add `pipelines/orders_current_state.sql` to the existing Lakeflow DLT pipeline
-5. **Restart app**: `databricks apps deploy twins-digital-twin --source-code-path ...` or restart via UI
-6. **Verify**: Hit https://twins-digital-twin-984752964297111.11.azure.databricksapps.com and confirm 4 markets load
+#### What failed or needed fixing
+- **Polling abort loop**: `usePolling` used `setInterval` (fixed 3s cadence). Slow Lakebase queries (>3s) were cancelled every cycle. Fix: switched to poll-after-completion (`setTimeout` loop). The 3s interval was the interval between *starts*, not *completions* — under load it becomes an abort storm.
+- **KPI/pipeline mismatch**: KPI bar pulled `active_orders` and `drivers_out` from a separate backend query using raw `current_stage`. Pipeline computed from frontend orders array using `getOrderStage()`. They diverged under sync lag. Fix: derive both counts client-side from the same orders array.
+- **Delivered orders in "In Transit"**: `current_stage = 'driver_ping'` can persist after `delivered_at` is set due to DLT sync lag. Fix: `getOrderStage()` checks `delivered_at` first — `delivered_at IS NOT NULL` always wins regardless of `current_stage`.
+- **Drivers endpoint 500 after adding delivered_at filter**: Added `AND (oe.delivered_at IS NULL OR oe.delivered_at = '')`. The `= ''` comparison against a TIMESTAMP column blew up with `InvalidDatetimeFormatError`. Fix: `AND oe.delivered_at IS NULL` only — timestamp columns don't have empty-string values.
+- **Yellow dot clutter**: Including last-60-min delivered orders in the orders query for the pipeline Delivered count also added their customer pins to the map. Fix: skip customer pins for `getOrderStage(order) === "Delivered"`, then add green teardrops for delivered orders instead.
+- **Market tab overflow**: MarketGroup rendered all 44 stores in SF Bay Area by default. Fix: show only stores with `active_orders > 0`, collapse idle stores behind a `+N` button.
+
+#### Patterns to watch for
+- **Lakebase `delivered_at` is TIMESTAMP, not TEXT**: Don't compare with `= ''`. Use `IS NULL` for undelivered check. Other string fields (like `current_stage`) remain TEXT and can be compared with `= ''` as a fallback.
+- **Driver positions endpoint uses 2-hour ping window, not delivery status**: The `driver_positions_synced` stream stops after delivery — no return-trip data exists. `progress_pct` is 0–100% of the *outbound* leg only. The "returning to store" UX state is not supported by the current simulator.
+- **LEFT JOIN + WHERE on right table = implicit INNER JOIN**: Adding `AND oe.delivered_at IS NULL` to a LEFT JOIN filters out unmatched rows (NULL oe columns pass the IS NULL check, so this is safe here — but validate carefully in other contexts).
+- **`usePolling` deps cause cascading aborts on market switch**: When `activeMarketId` changes, `doFetch` callback changes, triggering effect cleanup (abort) + restart. This is correct behavior — market-switch aborts are intentional and distinct from the fixed-interval abort bug.
+- **`progress_pct >= 80` as "almost there" proxy**: Based on actual simulator data (max observed: ~93%), this threshold correctly identifies drivers near the customer. Monitor if simulator speed changes alter the distribution.
+
+#### QA iterations
+- All features pass Chrome DevTools live testing. One regression (500 on drivers endpoint) caught and fixed within the same session via `/logz` log inspection.
