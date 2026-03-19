@@ -1,6 +1,6 @@
 project: twins-digital-twin
 created_at: "2026-03-16T16:30:00Z"
-overall_status: in_progress
+overall_status: completed
 feature: synthetic-customer-dataset
 
 phases:
@@ -43,13 +43,16 @@ phases:
   # --- Feature: synthetic-customer-dataset ---
   - id: "1-customers"
     name: Customer Data Generation & Pipeline
-    status: in_progress
+    status: completed
+    completed_at: "2026-03-19"
     steps:
       read_phase_config: completed
       resolve_contracts: completed
-      dispatch_agents: in_progress
+      dispatch_agents: completed
+      qa_gate: completed
     agents:
-      data-engineer: {status: dispatched}
+      data-engineer: {status: DONE, merged: true}
+    qa_results: {attempt: 1, result: PASS}
     outputs:
       - setup/generate_customers.py
       - vdm_classic_rikfy0_catalog.simulator.customers
@@ -58,10 +61,17 @@ phases:
 
   - id: "2-customers"
     name: DAB Integration & QA
-    status: pending
+    status: completed
+    completed_at: "2026-03-19"
+    steps:
+      read_phase_config: completed
+      resolve_contracts: completed
+      dispatch_agents: completed
+      qa_gate: completed
     agents:
-      deploy-engineer: {status: pending}
-      qa-engineer:     {status: pending}
+      deploy-engineer: {status: DONE, merged: true}
+      qa-engineer:     {status: DONE, merged: true}
+    qa_results: {attempt: 1, result: PASS}
     outputs:
       - databricks.yml (Task 5 + faker)
       - setup/config.py (3 SYNCS + 3 indexes)
