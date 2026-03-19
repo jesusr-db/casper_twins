@@ -56,13 +56,13 @@ SYNCS = [
         "policy": SyncedTableSchedulingPolicy.SNAPSHOT,
         "pk": ["customer_id"],
     },
-    # Order-to-customer map — CONTINUOUS for real-time new order mapping
-    {
-        "source": f"{SOURCE_CATALOG}.lakeflow.order_customer_map",
-        "name": f"{SOURCE_CATALOG}.lakeflow.order_customer_map_synced",
-        "policy": SyncedTableSchedulingPolicy.CONTINUOUS,
-        "pk": ["order_id"],
-    },
+    # NOTE: order_customer_map (streaming table) is intentionally excluded.
+    # DLT CONTINUOUS streaming tables accumulate duplicates when full-refreshed.
+    # Customer lookups in Lakebase instead join through customer_address_index_synced:
+    #   JOIN simulator.customer_address_index_synced ai
+    #     ON ROUND(CAST((o.order_body::json)->>'customer_lat' AS numeric), 3) = ai.rounded_lat
+    #     AND ROUND(CAST((o.order_body::json)->>'customer_lon' AS numeric), 3) = ai.rounded_lon
+    #   JOIN simulator.customers_synced c ON ai.customer_id = c.customer_id
 ]
 
 # Postgres view over all_events_synced (CONTINUOUS sync) that replicates the
@@ -157,11 +157,8 @@ CREATE INDEX IF NOT EXISTS idx_driver_positions_location
 CREATE INDEX IF NOT EXISTS idx_customers_location
   ON simulator.customers_synced (location_id);
 
-CREATE INDEX IF NOT EXISTS idx_ocm_customer
-  ON lakeflow.order_customer_map_synced (customer_id);
-
-CREATE INDEX IF NOT EXISTS idx_ocm_order
-  ON lakeflow.order_customer_map_synced (order_id);
+CREATE INDEX IF NOT EXISTS idx_address_index_lat_lon
+  ON simulator.customer_address_index_synced (rounded_lat, rounded_lon);
 """
 
 

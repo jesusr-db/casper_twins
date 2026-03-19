@@ -1,7 +1,7 @@
 # Digital Twin — Handoff Roadmap
 
 **App**: Domino's Digital Twin Driver Tracking
-**Last updated**: 2026-03-19
+**Last updated**: 2026-03-19 (B2 fixed same day)
 
 ---
 
@@ -27,13 +27,40 @@
 
 ---
 
+### B2 — Timezone: SLA timers show orders as 8 hours old ✅ Fixed 2026-03-19
+
+**Priority**: High (UX-breaking)
+**Effort**: Low (1-line frontend fix)
+
+**What happens**: Orders display as "480 min in New" — SLA timers count from 8 hours ago instead of the actual order age. Affects all `getMinutesInStage` calculations and SLA dot colors.
+
+**Root cause**: `parseTimestamp` in `sla.ts` only appended "Z" (UTC) for space-separated timestamp strings. Timestamps returned by Lakebase via asyncpg are serialized by FastAPI as `"YYYY-MM-DDTHH:MM:SS"` (with "T", no "Z"). `new Date("2026-03-19T10:00:00")` without "Z" is parsed by browsers as **local time**, not UTC. Users 8 hours ahead of UTC see all timestamps interpreted 8 hours earlier than actual.
+
+**Fix applied**: `parseTimestamp` now normalizes both formats to ISO + always appends "Z" unless the string already carries timezone info (`Z` or `±HH:MM` suffix). File: `frontend/src/constants/sla.ts`.
+
+---
+
 ## Next Milestone
+
+### Map: Store Pins + Delivery Drill-Down
+- Show pins for **all store locations** on the map at all times (currently only the active market gets a pin)
+- Clicking a store pin filters visible delivery/delivered pins to that store only
+- Clicking away or switching markets resets to the active market's pins
 
 ### Operations & Delivery
 - Alerting / push notifications for SLA breaches
 - Multi-market overview (all-markets zoomed-out map)
 - Predictive ETA (ML model integration)
 - Real store locations (Google Places API)
+
+### Synthetic Customer Dataset
+Generate a realistic customer population linked to the existing orders/delivery data:
+- **Discrete buyer personas** — e.g., weeknight regular, weekend splurger, lunch-only, occasional, lapsed — each with realistic order frequency, time-of-day, and item preferences
+- **Store affinity** — each customer is associated with a primary store; some cross-shop nearby stores
+- **Loyalty membership** — mix of loyalty members (with point accrual history) and non-members
+- **Coupon/offer usage** — segment of customers who consistently redeem offers; others who never do; some occasional redeemers
+- **Order body linkage** — synthetic customer records joinable to existing `orders_enriched_synced` by `customer_id` (new FK) or matched by delivery address/lat-lon
+- Output: Delta table in Unity Catalog, synced to Lakebase for app queries
 
 ### Customer Experience
 - **Refund Manager** — track and process refund requests tied to order IDs; surface refund rate as a store KPI

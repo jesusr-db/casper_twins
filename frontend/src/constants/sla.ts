@@ -51,6 +51,9 @@ export function getMinutesInStage(
 }
 
 function parseTimestamp(ts: string): Date {
-  // Handle "YYYY-MM-DD HH:MM:SS" format (no T separator)
-  return new Date(ts.includes("T") ? ts : ts.replace(" ", "T") + "Z");
+  // Normalize space separator, then ensure UTC interpretation for naive timestamps.
+  // Without "Z", browsers parse "YYYY-MM-DDTHH:MM:SS" as local time — wrong for UTC data.
+  const iso = ts.replace(" ", "T");
+  if (iso.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(iso)) return new Date(iso);
+  return new Date(iso + "Z");
 }

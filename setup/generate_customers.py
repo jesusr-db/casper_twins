@@ -69,20 +69,24 @@ ADDRESS_INDEX_SCHEMA = StructType([
 ])
 
 CLUSTER_QUERY = """
-SELECT
-  ROUND(CAST(json_extract_path_text(order_body, 'customer_lat') AS numeric), 3) AS rounded_lat,
-  ROUND(CAST(json_extract_path_text(order_body, 'customer_lon') AS numeric), 3) AS rounded_lon,
-  location_id,
-  MIN(created_at) AS first_order,
-  MAX(created_at) AS last_order,
-  COUNT(*) AS order_count,
-  COALESCE(SUM(order_total), 0) AS total_spend,
-  AVG(EXTRACT(HOUR FROM created_at::timestamp)) AS avg_hour,
-  COUNT(*) FILTER (WHERE EXTRACT(DOW FROM created_at::timestamp) IN (5, 6, 0)) AS weekend_orders,
-  COUNT(*) FILTER (WHERE EXTRACT(HOUR FROM created_at::timestamp) BETWEEN 11 AND 14) AS lunch_orders
-FROM lakeflow.orders_enriched_synced
-WHERE order_body IS NOT NULL
-GROUP BY rounded_lat, rounded_lon, location_id
+SELECT * FROM (
+  SELECT
+    ROUND(CAST((body::json)->>'customer_lat' AS numeric), 3) AS rounded_lat,
+    ROUND(CAST((body::json)->>'customer_lon' AS numeric), 3) AS rounded_lon,
+    location_id,
+    MIN(ts) AS first_order,
+    MAX(ts) AS last_order,
+    COUNT(*) AS order_count,
+    0.0 AS total_spend,
+    AVG(EXTRACT(HOUR FROM ts::timestamp)) AS avg_hour,
+    COUNT(*) FILTER (WHERE EXTRACT(DOW FROM ts::timestamp) IN (5, 6, 0)) AS weekend_orders,
+    COUNT(*) FILTER (WHERE EXTRACT(HOUR FROM ts::timestamp) BETWEEN 11 AND 14) AS lunch_orders
+  FROM lakeflow.all_events_synced
+  WHERE event_type = 'order_created'
+    AND body IS NOT NULL
+  GROUP BY rounded_lat, rounded_lon, location_id
+) sub
+WHERE rounded_lat IS NOT NULL AND rounded_lon IS NOT NULL
 """
 
 
@@ -136,8 +140,8 @@ def _generate_customer(row: dict, persona: str) -> tuple[dict, dict]:
     lon = float(row["rounded_lon"])
     location_id = row["location_id"]
 
-    # Deterministic seed from lat/lon
-    key = f"{lat},{lon}"
+    # Deterministic seed from lat/lon + location to avoid collisions across markets
+    key = f"{lat},{lon},{location_id}"
     md5_hex = hashlib.md5(key.encode()).hexdigest()
     seed = int(md5_hex[:8], 16)
 

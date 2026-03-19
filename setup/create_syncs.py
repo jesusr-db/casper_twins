@@ -1,6 +1,10 @@
-"""Task 3: Create 3 synced tables and wait for data to appear in Postgres.
+"""Task 3: Create synced tables and wait for data to appear in Postgres.
 
 Depends on: provision_lakebase (instance must exist).
+Idempotent: if a sync already exists and is healthy, it is skipped.
+If a sync is in a broken state (OFFLINE_FAILED), it is force-recreated:
+  the UC registration is deleted, the Postgres table is dropped, and the
+  sync is created fresh.
 """
 
 import logging
@@ -24,8 +28,113 @@ log = logging.getLogger("create_syncs")
 SYNC_TIMEOUT = 600
 
 
+def _pg_schema_table(synced_table_name: str) -> tuple[str, str]:
+    """Extract (schema, table) from 'catalog.schema.table'."""
+    parts = synced_table_name.split(".")
+    return parts[-2], parts[-1]
+
+
+def _drop_pg_table(host: str, user: str, password: str, schema: str, table: str) -> None:
+    """Drop a Postgres table, ignoring errors if it doesn't exist."""
+    conn = None
+    try:
+        conn = psycopg2.connect(
+            host=host, port=5432, dbname=PG_DATABASE,
+            user=user, password=password, sslmode="require",
+        )
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute(f"DROP TABLE IF EXISTS {schema}.{table}")
+        log.info("    Dropped Postgres table: %s.%s", schema, table)
+    except Exception as e:
+        log.warning("    Could not drop Postgres table %s.%s: %s", schema, table, e)
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def _create_sync(w: WorkspaceClient, name: str, source: str, policy, pk: list[str]) -> None:
+    """Call the SDK to create a synced table (raises on failure)."""
+    w.database.create_synced_database_table(
+        synced_table=SyncedDatabaseTable(
+            name=name,
+            database_instance_name=INSTANCE_NAME,
+            logical_database_name=PG_DATABASE,
+            spec=SyncedTableSpec(
+                source_table_full_name=source,
+                scheduling_policy=policy,
+                primary_key_columns=pk,
+                create_database_objects_if_missing=True,
+            ),
+        )
+    )
+
+
+def _handle_existing_sync(
+    w: WorkspaceClient,
+    name: str,
+    source: str,
+    policy,
+    pk: list[str],
+    pg_host: str,
+    pg_user: str,
+    pg_password: str,
+) -> None:
+    """Handle an 'already exists' response.
+
+    If the sync is healthy, log and skip.
+    If it is broken (OFFLINE_FAILED / NotFound), delete the stale registration,
+    drop the Postgres table, and recreate the sync from scratch.
+    """
+    schema, table = _pg_schema_table(name)
+    is_broken = False
+    reason = ""
+
+    try:
+        t = w.database.get_synced_database_table(name)
+        status = t.data_synchronization_status
+        state = status.detailed_state if status else None
+        if state and "FAILED" in str(state):
+            is_broken = True
+            reason = f"state={state}"
+        else:
+            log.info("  Sync healthy (state=%s), skipping: %s", state, source)
+            return
+    except Exception as e:
+        if "not found" in str(e).lower() or "does not exist" in str(e).lower():
+            # UC registration gone but Postgres table still exists
+            is_broken = True
+            reason = "UC registration missing, Postgres table may still exist"
+        else:
+            log.warning("  Could not check sync state for %s: %s (skipping)", source, e)
+            return
+
+    log.info("  Sync is broken (%s), force-recreating: %s", reason, source)
+
+    # 1. Delete stale UC registration (ignore errors — may already be gone)
+    try:
+        w.database.delete_synced_database_table(name)
+        log.info("    Deleted stale UC sync: %s", name)
+    except Exception:
+        pass
+
+    # 2. Drop stale Postgres table
+    _drop_pg_table(pg_host, pg_user, pg_password, schema, table)
+
+    # 3. Recreate
+    _create_sync(w, name, source, policy, pk)
+    log.info("  Sync recreated: %s", source)
+
+
 def ensure_syncs(w: WorkspaceClient) -> None:
-    """Create synced tables for all 3 Delta sources."""
+    """Create (or force-recreate) all synced tables defined in SYNCS."""
+    instance = w.database.get_database_instance(INSTANCE_NAME)
+    pg_host = instance.read_write_dns
+    pg_user, pg_password = get_pg_credentials(w)
+
     for sync_cfg in SYNCS:
         source = sync_cfg["source"]
         name = sync_cfg["name"]
@@ -34,25 +143,13 @@ def ensure_syncs(w: WorkspaceClient) -> None:
 
         log.info("Creating sync: %s (policy: %s, pk: %s)", source, policy.value, pk)
         try:
-            w.database.create_synced_database_table(
-                synced_table=SyncedDatabaseTable(
-                    name=name,
-                    database_instance_name=INSTANCE_NAME,
-                    logical_database_name=PG_DATABASE,
-                    spec=SyncedTableSpec(
-                        source_table_full_name=source,
-                        scheduling_policy=policy,
-                        primary_key_columns=pk,
-                        create_database_objects_if_missing=True,
-                    ),
-                )
-            )
+            _create_sync(w, name, source, policy, pk)
             log.info("Sync created: %s", source)
         except Exception as e:
             if "already exists" in str(e).lower() or "ALREADY_EXISTS" in str(e):
-                log.info("Sync already exists: %s", source)
+                _handle_existing_sync(w, name, source, policy, pk, pg_host, pg_user, pg_password)
             else:
-                log.warning("Sync creation for %s: %s (continuing)", source, e)
+                log.warning("Sync creation for %s failed: %s (continuing)", source, e)
 
 
 def wait_for_sync_data(w: WorkspaceClient) -> None:

@@ -2,9 +2,9 @@
 Digital Twins — Lakebase Infrastructure Destroy Job
 
 Tears down all resources created by setup tasks that are NOT managed by DAB:
-  1. Delete synced tables (stops their sync pipelines)
-  2. Delete Lakebase Provisioned instance (twins)
-  3. Drop the orders_enriched MV from Unity Catalog (created by DAB pipeline)
+  1. Delete synced tables (stops their sync pipelines + drops UC registrations)
+  2. Delete Lakebase Provisioned instance (twins) — drops all Postgres data
+  3. Drop DLT-created tables from Unity Catalog
 
 Does NOT touch:
   - The Databricks App (managed by DAB)
@@ -28,15 +28,21 @@ log = logging.getLogger("destroy_lakebase")
 INSTANCE_NAME = "twins"
 SOURCE_CATALOG = "vdm_classic_rikfy0_catalog"
 
+# All synced tables created by create_syncs.py — must stay in sync with config.SYNCS
 SYNCED_TABLES = [
     f"{SOURCE_CATALOG}.simulator.locations_synced",
-    f"{SOURCE_CATALOG}.lakeflow.orders_enriched_synced",
     f"{SOURCE_CATALOG}.lakeflow.all_events_synced",
+    f"{SOURCE_CATALOG}.lakeflow.driver_positions_synced",
+    # Synthetic customer tables (added by generate_customers + create_syncs)
+    f"{SOURCE_CATALOG}.simulator.customers_synced",
+    f"{SOURCE_CATALOG}.simulator.customer_address_index_synced",
 ]
 
 # Tables created by our DAB pipeline (not the caspers-kitchens pipeline)
 DLT_TABLES = [
     f"{SOURCE_CATALOG}.lakeflow.orders_enriched",
+    f"{SOURCE_CATALOG}.lakeflow.driver_positions",
+    f"{SOURCE_CATALOG}.lakeflow.order_customer_map",
 ]
 
 
@@ -66,6 +72,8 @@ def main():
         _safe(lambda n=name: w.database.delete_synced_database_table(n), name)
 
     # ── Step 2: Delete Lakebase instance ──────────────────────────────────────
+    # Deleting the instance also drops all Postgres schemas and tables inside it,
+    # so any stale Postgres tables (e.g. from a failed sync) are cleaned up here.
     log.info("Step 2: Deleting Lakebase instance '%s'...", INSTANCE_NAME)
     _safe(lambda: w.database.delete_database_instance(INSTANCE_NAME), INSTANCE_NAME)
 
