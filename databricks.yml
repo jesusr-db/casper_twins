@@ -76,6 +76,12 @@ resources:
           spark_python_task:
             python_file: setup/finalize.py
           environment_key: setup_env
+        - task_key: generate_customers
+          depends_on:
+            - task_key: finalize
+          spark_python_task:
+            python_file: setup/generate_customers.py
+          environment_key: setup_env
       environments:
         - environment_key: setup_env
           spec:
@@ -83,6 +89,7 @@ resources:
             dependencies:
               - "psycopg2-binary>=2.9.0"
               - "databricks-sdk>=0.49.0"
+              - "faker>=24.0.0"
       run_as:
         user_name: jesus.rodriguez@databricks.com
       permissions:

@@ -41,6 +41,28 @@ SYNCS = [
         "policy": SyncedTableSchedulingPolicy.CONTINUOUS,
         "pk": ["order_id"],
     },
+    # --- Synthetic customer tables ---
+    # Customer master data — SNAPSHOT is sufficient (generated once, rarely changes)
+    {
+        "source": f"{SOURCE_CATALOG}.simulator.customers",
+        "name": f"{SOURCE_CATALOG}.simulator.customers_synced",
+        "policy": SyncedTableSchedulingPolicy.SNAPSHOT,
+        "pk": ["customer_id"],
+    },
+    # Address lookup index for order-to-customer mapping
+    {
+        "source": f"{SOURCE_CATALOG}.simulator.customer_address_index",
+        "name": f"{SOURCE_CATALOG}.simulator.customer_address_index_synced",
+        "policy": SyncedTableSchedulingPolicy.SNAPSHOT,
+        "pk": ["customer_id"],
+    },
+    # Order-to-customer map — CONTINUOUS for real-time new order mapping
+    {
+        "source": f"{SOURCE_CATALOG}.lakeflow.order_customer_map",
+        "name": f"{SOURCE_CATALOG}.lakeflow.order_customer_map_synced",
+        "policy": SyncedTableSchedulingPolicy.CONTINUOUS,
+        "pk": ["order_id"],
+    },
 ]
 
 # Postgres view over all_events_synced (CONTINUOUS sync) that replicates the
@@ -131,6 +153,15 @@ CREATE INDEX IF NOT EXISTS idx_events_location_ts
 
 CREATE INDEX IF NOT EXISTS idx_driver_positions_location
   ON lakeflow.driver_positions_synced (location_id);
+
+CREATE INDEX IF NOT EXISTS idx_customers_location
+  ON simulator.customers_synced (location_id);
+
+CREATE INDEX IF NOT EXISTS idx_ocm_customer
+  ON lakeflow.order_customer_map_synced (customer_id);
+
+CREATE INDEX IF NOT EXISTS idx_ocm_order
+  ON lakeflow.order_customer_map_synced (order_id);
 """
 
 
