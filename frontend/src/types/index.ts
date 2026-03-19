@@ -161,3 +161,66 @@ export const STAGE_COLORS: Record<PipelineStage, string> = {
   "In Transit": "#E31837",
   Delivered: "#4CAF50",
 };
+
+// =============================================================================
+// Customer Experience (CX) Panel types
+// =============================================================================
+
+/** Store summary row from GET /api/cx/summary */
+export interface CXStoreSummary {
+  location_id: number;
+  name: string;
+  location_code: string;
+  orders: number;
+  complaints: number;
+  complaint_rate: number;
+  refund_exposure: number;
+  top_category: string | null;
+}
+
+/** Full store detail response from GET /api/cx/stores/{id} */
+export interface CXStoreDetailResponse {
+  kpis: {
+    total_complaints: number;
+    complaint_rate: number;
+    refund_exposure: number;
+    avg_refund: number;
+  };
+  trend: { date: string; complaints: number }[];
+  category_breakdown: { category: string; count: number; pct: number }[];
+  refund_class_split: { refund_class: string; count: number }[];
+  top_customers: {
+    customer_id: string;
+    name: string;
+    is_loyalty_member: boolean;
+    complaint_count: number;
+  }[];
+}
+
+/** Row from GET /api/cx/stores/{id}/complaints */
+export interface CXComplaintRow {
+  complaint_id: string;
+  order_id: string;
+  category: string;
+  complaint_text: string;
+  ts: string;
+  refund_usd: number | null;
+  refund_class: string | null;
+}
+
+/** Row from GET /api/cx/stores/{id}/refunds */
+export interface CXRefundRow {
+  order_id: string;
+  refund_class: string;
+  refund_usd: number | null;
+  reason: string;
+  order_ts: string;
+}
+
+/** KPIs shared between global and store-level views */
+export interface CXKpis {
+  total_complaints: number;
+  complaint_rate: number;
+  refund_exposure: number;
+  avg_refund: number;
+}
