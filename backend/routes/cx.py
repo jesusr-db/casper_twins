@@ -63,7 +63,7 @@ async def get_cx_summary(
                  THEN (rr.agent_response::json->>'refund_usd')::numeric END), 0)   AS refund_exposure,
           MODE() WITHIN GROUP (ORDER BY c.complaint_category)                      AS top_category
         FROM lakeflow.orders_enriched_synced oe
-        JOIN simulator.locations_synced loc ON oe.location_id = loc.location_id
+        JOIN simulator.locations_synced loc ON oe.location_id = loc.location_id::text
         LEFT JOIN complaints.complaints_synced c
                ON c.order_id = oe.order_id
               AND ($2::text IS NULL OR c.complaint_category = $2)

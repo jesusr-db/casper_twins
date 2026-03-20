@@ -11,7 +11,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -92,7 +92,15 @@ async def health_check():
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend" / "dist"
 
 if FRONTEND_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+    # Serve static assets (JS, CSS, images) from /assets
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="assets")
+
+    # SPA catch-all: serve index.html for all non-API routes so React Router works
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        index = FRONTEND_DIR / "index.html"
+        return FileResponse(str(index))
+
     logger.info("Serving frontend from %s", FRONTEND_DIR)
 else:
     logger.warning(

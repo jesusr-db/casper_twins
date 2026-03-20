@@ -71,7 +71,7 @@ export const CXGlobalView: React.FC<Props> = ({
 
   const filteredStores = useMemo(() => {
     if (!summary) return [];
-    let stores = summary.stores;
+    let stores = summary.stores ?? [];
     if (selectedMarket) {
       stores = stores.filter((s) => getMarketForStore(s) === selectedMarket);
     }

@@ -30,7 +30,11 @@ export const CXPanel: React.FC = () => {
 
     fetch(`/api/cx/summary?${params}`)
       .then((r) => r.json())
-      .then((data: SummaryResponse) => { setSummary(data); setLoading(false); })
+      .then((data: SummaryResponse) => {
+        // Guard: only store if response has the expected shape
+        if (data.kpis && Array.isArray(data.stores)) setSummary(data);
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, [days, category]);
 
