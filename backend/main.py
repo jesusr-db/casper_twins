@@ -66,6 +66,12 @@ class DBErrorMiddleware(BaseHTTPMiddleware):
                     status_code=503,
                     content={"error": "data_not_ready", "detail": f"Table '{table}' not synced yet."},
                 )
+            if "InsufficientPrivilege" in type(exc).__name__ or "permission denied" in str(exc).lower():
+                logger.warning("Insufficient privileges: %s — run setup-lakebase finalize task", exc)
+                return JSONResponse(
+                    status_code=503,
+                    content={"error": "permission_denied", "detail": "Database permissions not yet applied. Run setup-lakebase job."},
+                )
             raise
 
 app.add_middleware(DBErrorMiddleware)
