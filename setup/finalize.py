@@ -15,7 +15,6 @@ from config import (
     INDEX_SQL,
     INSTANCE_NAME,
     PG_DATABASE,
-    VIEW_SQL,
     get_pg_credentials,
 )
 
@@ -28,8 +27,8 @@ def _get_host(w: WorkspaceClient) -> str:
     return instance.read_write_dns
 
 
-def create_view_and_indexes(w: WorkspaceClient, host: str) -> None:
-    """Create orders_enriched_synced view and performance indexes."""
+def create_indexes(w: WorkspaceClient, host: str) -> None:
+    """Drop legacy matview (if any) and create performance indexes on synced tables."""
     user, password = get_pg_credentials(w)
 
     conn = psycopg2.connect(
@@ -39,15 +38,18 @@ def create_view_and_indexes(w: WorkspaceClient, host: str) -> None:
     conn.autocommit = True
     cur = conn.cursor()
 
-    # Create the live view over all_events_synced
-    log.info("Creating orders_enriched_synced view...")
-    try:
-        cur.execute(VIEW_SQL.strip())
-        log.info("View created: lakeflow.orders_enriched_synced")
-    except Exception as e:
-        log.warning("View creation: %s", e)
+    # Clean up legacy materialized view / view from previous deployments.
+    # orders_enriched_synced is now a CONTINUOUS-synced table, not a view.
+    for cleanup in [
+        "DROP MATERIALIZED VIEW IF EXISTS lakeflow.orders_enriched_synced",
+        "DROP VIEW IF EXISTS lakeflow.orders_enriched_synced CASCADE",
+    ]:
+        try:
+            cur.execute(cleanup)
+        except Exception:
+            pass  # Already gone or never existed
 
-    # Create performance indexes
+    # Create performance indexes on synced tables
     log.info("Creating Postgres indexes...")
     for stmt in INDEX_SQL.strip().split(";"):
         stmt = stmt.strip()
@@ -61,7 +63,7 @@ def create_view_and_indexes(w: WorkspaceClient, host: str) -> None:
 
     cur.close()
     conn.close()
-    log.info("View and indexes ready")
+    log.info("Indexes ready")
 
 
 def grant_app_sp_access(w: WorkspaceClient, host: str) -> None:
@@ -154,11 +156,12 @@ def main():
     w = WorkspaceClient()
 
     host = _get_host(w)
-    create_view_and_indexes(w, host)
+    create_indexes(w, host)
     grant_app_sp_access(w, host)
     verify(w, host)
 
     log.info("Finalize complete — indexes, grants, and verification done")
+    log.info("NOTE: orders_enriched_synced is now a CONTINUOUS-synced table (not a view)")
 
 
 if __name__ == "__main__":

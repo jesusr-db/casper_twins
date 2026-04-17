@@ -54,16 +54,24 @@ async def list_market_orders(
             ORDER BY created_at DESC
         """
     else:
-        # Include active orders + orders delivered in the last 60 minutes
-        # so the pipeline "Delivered" stage shows recent completions.
+        # Only orders created within the last 24h of SIMULATOR time (not
+        # wall-clock). The simulator generates "loop" duplicate orders every
+        # ~3 months (order_id, order_id-L1, -L2, ...); without this filter
+        # stale copies from prior simulator quarters show up as "active" and
+        # clutter the dashboard. Deliveries from the last 60 min of sim time
+        # are also included so the pipeline "Delivered" column stays populated.
         query = """
+            WITH sim_now AS (
+              SELECT MAX(ts)::timestamp AS now_ts FROM lakeflow.all_events_synced
+            )
             SELECT order_id, location_id, current_stage, created_at,
                    delivered_at, order_body, latest_ping, order_total
-            FROM lakeflow.orders_enriched_synced
+            FROM lakeflow.orders_enriched_synced, sim_now
             WHERE location_id = $1
+              AND created_at::timestamp >= sim_now.now_ts - INTERVAL '24 hours'
               AND (
                 delivered_at IS NULL
-                OR delivered_at::timestamp >= NOW() - INTERVAL '60 minutes'
+                OR delivered_at::timestamp >= sim_now.now_ts - INTERVAL '60 minutes'
               )
             ORDER BY created_at DESC
         """

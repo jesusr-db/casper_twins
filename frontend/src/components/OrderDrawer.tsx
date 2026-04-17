@@ -130,7 +130,7 @@ export const OrderDrawer: React.FC<OrderDrawerProps> = ({
         <div className="drawer-header-left">
           <h2 className="drawer-order-id" id="order-drawer-title">
             <span className="drawer-hash">#</span>
-            {order.order_id.slice(0, 6)}
+            {order.order_id}
           </h2>
           <span className="drawer-order-price">
             ${order.order_total.toFixed(2)}

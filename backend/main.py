@@ -61,7 +61,11 @@ class DBErrorMiddleware(BaseHTTPMiddleware):
         except Exception as exc:
             if "UndefinedTable" in type(exc).__name__ or "does not exist" in str(exc):
                 table = str(exc).split('"')[1] if '"' in str(exc) else "unknown"
-                logger.warning("Table not yet available: %s — run setup-lakebase job", table)
+                # Log exc type + full message so 'unknown' cases are diagnosable
+                logger.warning(
+                    "Table not yet available: %s (type=%s, msg=%r) — run setup-lakebase job",
+                    table, type(exc).__name__, str(exc),
+                )
                 return JSONResponse(
                     status_code=503,
                     content={"error": "data_not_ready", "detail": f"Table '{table}' not synced yet."},

@@ -25,10 +25,16 @@ def _validate_days(days: int) -> int:
         raise HTTPException(status_code=422, detail="days must be >= 0 (0 = all time)")
     return days
 
-# No _days_clause helper needed — all queries use the stable SQL pattern:
-#   AND ($N = 0 OR col >= NOW() - make_interval(days => $N::int))
-# This keeps positional param count constant regardless of the days value,
-# avoiding asyncpg "too many arguments" errors when days=0.
+# All queries use the stable SQL pattern:
+#   AND ($N = 0 OR col::timestamp >= (SELECT MAX(ts)::timestamp FROM
+#                                     lakeflow.all_events_synced)
+#                                     - make_interval(days => $N::int))
+# - Simulator time (MAX(ts)) instead of NOW() — simulator is ~19 months
+#   ahead of wall-clock, so NOW()-based filters include no recent data.
+# - col::timestamp cast — synced TEXT timestamp columns can't compare to
+#   timestamptz directly.
+# Positional param count stays constant regardless of days value, avoiding
+# asyncpg "too many arguments" errors when days=0.
 
 
 @router.get("/summary")
@@ -68,7 +74,7 @@ async def get_cx_summary(
                ON c.order_id = oe.order_id
               AND ($2::text IS NULL OR c.complaint_category = $2)
         LEFT JOIN recommender.refund_recommendations_synced rr ON rr.order_id = oe.order_id
-        WHERE ($1 = 0 OR oe.created_at >= NOW() - make_interval(days => $1::int))
+        WHERE ($1 = 0 OR oe.created_at::timestamp >= (SELECT MAX(ts)::timestamp FROM lakeflow.all_events_synced) - make_interval(days => $1::int))
         GROUP BY oe.location_id, loc.name, loc.location_code
         """,
         days, category,
@@ -124,7 +130,7 @@ async def get_store_detail(location_id: str, days: int = Query(30)):
         LEFT JOIN complaints.complaints_synced c ON c.order_id = oe.order_id
         LEFT JOIN recommender.refund_recommendations_synced rr ON rr.order_id = oe.order_id
         WHERE oe.location_id = $1
-          AND ($2 = 0 OR oe.created_at >= NOW() - make_interval(days => $2::int))
+          AND ($2 = 0 OR oe.created_at::timestamp >= (SELECT MAX(ts)::timestamp FROM lakeflow.all_events_synced) - make_interval(days => $2::int))
         """,
         location_id, days,
     )
@@ -138,7 +144,7 @@ async def get_store_detail(location_id: str, days: int = Query(30)):
         FROM complaints.complaints_synced c
         JOIN lakeflow.orders_enriched_synced oe ON c.order_id = oe.order_id
         WHERE oe.location_id = $1
-          AND ($2 = 0 OR c.ts >= NOW() - make_interval(days => $2::int))
+          AND ($2 = 0 OR oe.created_at::timestamp >= (SELECT MAX(ts)::timestamp FROM lakeflow.all_events_synced) - make_interval(days => $2::int))
         GROUP BY DATE(c.ts)
         ORDER BY date
         """,
@@ -154,7 +160,7 @@ async def get_store_detail(location_id: str, days: int = Query(30)):
         FROM complaints.complaints_synced c
         JOIN lakeflow.orders_enriched_synced oe ON c.order_id = oe.order_id
         WHERE oe.location_id = $1
-          AND ($2 = 0 OR c.ts >= NOW() - make_interval(days => $2::int))
+          AND ($2 = 0 OR oe.created_at::timestamp >= (SELECT MAX(ts)::timestamp FROM lakeflow.all_events_synced) - make_interval(days => $2::int))
         GROUP BY c.complaint_category
         ORDER BY count DESC
         """,
@@ -169,7 +175,7 @@ async def get_store_detail(location_id: str, days: int = Query(30)):
         FROM recommender.refund_recommendations_synced rr
         JOIN lakeflow.orders_enriched_synced oe ON rr.order_id = oe.order_id
         WHERE oe.location_id = $1
-          AND ($2 = 0 OR oe.created_at >= NOW() - make_interval(days => $2::int))
+          AND ($2 = 0 OR oe.created_at::timestamp >= (SELECT MAX(ts)::timestamp FROM lakeflow.all_events_synced) - make_interval(days => $2::int))
         GROUP BY rr.agent_response::json->>'refund_class'
         """,
         location_id, days,
@@ -189,7 +195,7 @@ async def get_store_detail(location_id: str, days: int = Query(30)):
          AND ROUND(CAST((oe.order_body::json)->>'customer_lon' AS numeric), 3) = ai.rounded_lon
         JOIN simulator.customers_synced cust ON ai.customer_id = cust.customer_id
         WHERE oe.location_id = $1
-          AND ($2 = 0 OR oe.created_at >= NOW() - make_interval(days => $2::int))
+          AND ($2 = 0 OR oe.created_at::timestamp >= (SELECT MAX(ts)::timestamp FROM lakeflow.all_events_synced) - make_interval(days => $2::int))
         GROUP BY cust.customer_id, cust.name, cust.is_loyalty_member
         ORDER BY complaint_count DESC
         LIMIT 5
@@ -247,7 +253,7 @@ async def get_store_complaints(
         FROM complaints.complaints_synced c
         JOIN lakeflow.orders_enriched_synced oe ON c.order_id = oe.order_id
         WHERE oe.location_id = $1
-          AND ($2 = 0 OR c.ts >= NOW() - make_interval(days => $2::int))
+          AND ($2 = 0 OR oe.created_at::timestamp >= (SELECT MAX(ts)::timestamp FROM lakeflow.all_events_synced) - make_interval(days => $2::int))
           AND ($3::text IS NULL OR c.complaint_category = $3)
         """,
         location_id, days, category,
@@ -267,7 +273,7 @@ async def get_store_complaints(
         JOIN lakeflow.orders_enriched_synced oe ON c.order_id = oe.order_id
         LEFT JOIN recommender.refund_recommendations_synced rr ON rr.order_id = c.order_id
         WHERE oe.location_id = $1
-          AND ($2 = 0 OR c.ts >= NOW() - make_interval(days => $2::int))
+          AND ($2 = 0 OR oe.created_at::timestamp >= (SELECT MAX(ts)::timestamp FROM lakeflow.all_events_synced) - make_interval(days => $2::int))
           AND ($3::text IS NULL OR c.complaint_category = $3)
         ORDER BY c.ts DESC
         LIMIT $4 OFFSET $5
@@ -317,7 +323,7 @@ async def get_store_refunds(
         FROM recommender.refund_recommendations_synced rr
         JOIN lakeflow.orders_enriched_synced oe ON rr.order_id = oe.order_id
         WHERE oe.location_id = $1
-          AND ($2 = 0 OR oe.created_at >= NOW() - make_interval(days => $2::int))
+          AND ($2 = 0 OR oe.created_at::timestamp >= (SELECT MAX(ts)::timestamp FROM lakeflow.all_events_synced) - make_interval(days => $2::int))
           AND ($3::text IS NULL OR rr.agent_response::json->>'refund_class' = $3)
         """,
         location_id, days, refund_class,
@@ -338,7 +344,7 @@ async def get_store_refunds(
         FROM recommender.refund_recommendations_synced rr
         JOIN lakeflow.orders_enriched_synced oe ON rr.order_id = oe.order_id
         WHERE oe.location_id = $1
-          AND ($2 = 0 OR oe.created_at >= NOW() - make_interval(days => $2::int))
+          AND ($2 = 0 OR oe.created_at::timestamp >= (SELECT MAX(ts)::timestamp FROM lakeflow.all_events_synced) - make_interval(days => $2::int))
           AND ($3::text IS NULL OR rr.agent_response::json->>'refund_class' = $3)
         ORDER BY rr.order_ts DESC
         LIMIT $4 OFFSET $5
