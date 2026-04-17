@@ -166,11 +166,11 @@ export const MapView: React.FC<MapViewProps> = ({
         const el = document.createElement("div");
         el.className = "driver-marker-dot";
         el.style.background = color;
-        el.title = `Order ${driver.order_id.slice(0, 6)}`;
+        el.title = `Order ${driver.order_id}`;
 
         const label = document.createElement("div");
         label.className = "driver-marker-label";
-        label.textContent = driver.order_id.slice(0, 6);
+        label.textContent = driver.order_id;
 
         const container = document.createElement("div");
         container.className = "driver-marker-container";

@@ -26,7 +26,7 @@ export const OrderListItem: React.FC<OrderListItemProps> = ({ order, onClick }) 
         style={{ background: statusColor }}
         title={`SLA: ${status}`}
       />
-      <span className="order-list-id">#{order.order_id.slice(0, 6).toUpperCase()}</span>
+      <span className="order-list-id">#{order.order_id.toUpperCase()}</span>
       <span className="order-list-time">{timeLabel} in {stage}</span>
       <span className="order-list-total">${order.order_total.toFixed(2)}</span>
     </button>

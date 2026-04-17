@@ -31,7 +31,12 @@ async def list_markets():
     if check:
         # Use a regular subquery (not LATERAL) so the view is evaluated once,
         # not 88 times. LATERAL would re-run the full CTE chain per market.
+        # Filter to last 24h of SIMULATOR time to exclude loop-duplicate
+        # orders from prior quarters (see routes/orders.py for context).
         query = """
+            WITH sim_now AS (
+              SELECT MAX(ts)::timestamp AS now_ts FROM lakeflow.all_events_synced
+            )
             SELECT
                 m.location_id,
                 m.location_code,
@@ -42,19 +47,21 @@ async def list_markets():
                 COALESCE(drivers.drivers_out, 0) AS drivers_out
             FROM simulator.locations_synced m
             LEFT JOIN (
-                SELECT location_id,
-                    COUNT(*) FILTER (WHERE delivered_at IS NULL) AS active_orders
-                FROM lakeflow.orders_enriched_synced
-                GROUP BY location_id
+                SELECT oe.location_id,
+                    COUNT(*) FILTER (WHERE oe.delivered_at IS NULL) AS active_orders
+                FROM lakeflow.orders_enriched_synced oe, sim_now
+                WHERE oe.created_at::timestamp >= sim_now.now_ts - INTERVAL '24 hours'
+                GROUP BY oe.location_id
             ) orders ON orders.location_id = m.location_id::text
             LEFT JOIN (
-                SELECT location_id,
+                SELECT oe.location_id,
                     COUNT(*) FILTER (
-                        WHERE current_stage IN ('driver_picked_up', 'driver_ping')
-                        AND delivered_at IS NULL
+                        WHERE oe.current_stage IN ('driver_picked_up', 'driver_ping')
+                        AND oe.delivered_at IS NULL
                     ) AS drivers_out
-                FROM lakeflow.orders_enriched_synced
-                GROUP BY location_id
+                FROM lakeflow.orders_enriched_synced oe, sim_now
+                WHERE oe.created_at::timestamp >= sim_now.now_ts - INTERVAL '24 hours'
+                GROUP BY oe.location_id
             ) drivers ON drivers.location_id = m.location_id::text
             ORDER BY m.location_id
         """
@@ -79,9 +86,12 @@ async def get_market_kpis(market_id: str):
     """
     pool = await get_pool()
 
-    # drivers_out comes from driver_positions_synced (same source as the map)
-    # so the KPI matches what's visible on screen.
+    # Filter to last 24h of simulator time so active counts exclude
+    # loop-duplicate stale orders from prior quarters.
     query = """
+        WITH sim_now AS (
+          SELECT MAX(ts)::timestamp AS now_ts FROM lakeflow.all_events_synced
+        )
         SELECT
             COUNT(*) FILTER (WHERE delivered_at IS NULL) AS active_orders,
             COUNT(*) FILTER (
@@ -92,16 +102,17 @@ async def get_market_kpis(market_id: str):
                 AVG(delivered_at::timestamp - created_at::timestamp)
                 FILTER (WHERE delivered_at IS NOT NULL
                   AND delivered_at > picked_up_at  -- exclude carryout (delivered_at = picked_up_at)
-                  AND created_at::date = (SELECT MAX(ts)::date FROM lakeflow.all_events_synced))
+                  AND created_at::date = sim_now.now_ts::date)
             ) AS avg_delivery_seconds,
             COALESCE(
                 SUM(order_total) FILTER (
-                  WHERE created_at::date = (SELECT MAX(ts)::date FROM lakeflow.all_events_synced)
+                  WHERE created_at::date = sim_now.now_ts::date
                 ),
                 0.0
             ) AS todays_revenue
-        FROM lakeflow.orders_enriched_synced
+        FROM lakeflow.orders_enriched_synced, sim_now
         WHERE location_id = $1
+          AND created_at::timestamp >= sim_now.now_ts - INTERVAL '24 hours'
     """
 
     row = await pool.fetchrow(query, market_id)

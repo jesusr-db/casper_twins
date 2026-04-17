@@ -146,7 +146,19 @@ def ensure_syncs(w: WorkspaceClient) -> None:
             _create_sync(w, name, source, policy, pk)
             log.info("Sync created: %s", source)
         except Exception as e:
-            if "already exists" in str(e).lower() or "ALREADY_EXISTS" in str(e):
+            msg = str(e)
+            msg_lower = msg.lower()
+            # "already exists" — normal idempotent path, inspect + heal if broken.
+            # "not found" / "does not exist" — the create call failed because the
+            # existing UC registration references a deleted pipeline or instance
+            # (e.g. DLT pipeline was recreated with a new source-table ID). Treat
+            # this the same as "broken sync" — force-recreate.
+            if (
+                "already exists" in msg_lower
+                or "ALREADY_EXISTS" in msg
+                or "not found" in msg_lower
+                or "does not exist" in msg_lower
+            ):
                 _handle_existing_sync(w, name, source, policy, pk, pg_host, pg_user, pg_password)
             else:
                 log.warning("Sync creation for %s failed: %s (continuing)", source, e)

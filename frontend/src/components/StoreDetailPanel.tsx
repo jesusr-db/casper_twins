@@ -147,7 +147,7 @@ export const StoreDetailPanel: React.FC<StoreDetailPanelProps> = ({
               {slaAlerts.map(({ order, stage, mins, over }) => (
                 <div key={order.order_id} className="store-alert-row">
                   <span className="store-alert-dot" />
-                  <span className="store-alert-id">#{order.order_id.slice(0, 6).toUpperCase()}</span>
+                  <span className="store-alert-id">#{order.order_id.toUpperCase()}</span>
                   <span className="store-alert-stage">{stage}</span>
                   <span className="store-alert-over">+{over}m over</span>
                 </div>

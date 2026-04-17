@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { DriverCard } from "./DriverCard";
-import type { OrderDetail, OrderItem } from "../types";
+import type { OrderDetail, OrderItem, CustomerInfo } from "../types";
 import { STAGE_COLORS } from "../types";
 
 interface OrderDrawerProps {
@@ -130,7 +130,7 @@ export const OrderDrawer: React.FC<OrderDrawerProps> = ({
         <div className="drawer-header-left">
           <h2 className="drawer-order-id" id="order-drawer-title">
             <span className="drawer-hash">#</span>
-            {order.order_id.slice(0, 6)}
+            {order.order_id}
           </h2>
           <span className="drawer-order-price">
             ${order.order_total.toFixed(2)}
@@ -210,6 +210,9 @@ export const OrderDrawer: React.FC<OrderDrawerProps> = ({
           </div>
         </div>
 
+        {/* Customer Card */}
+        {order.customer && <CustomerCard customer={order.customer} />}
+
         {/* Driver Card */}
         {isInTransit && (
           <DriverCard
@@ -222,6 +225,55 @@ export const OrderDrawer: React.FC<OrderDrawerProps> = ({
     </div>
   );
 };
+
+const PERSONA_LABELS: Record<string, string> = {
+  weeknight_regular: "Weeknight Regular",
+  weekend_splurger:  "Weekend Splurger",
+  lunch_only:        "Lunch Only",
+  occasional:        "Occasional",
+  lapsed:            "Lapsed",
+};
+
+const PERSONA_COLORS: Record<string, string> = {
+  weeknight_regular: "#006491",
+  weekend_splurger:  "#E31837",
+  lunch_only:        "#FFB800",
+  occasional:        "#4CAF50",
+  lapsed:            "#888",
+};
+
+const COUPON_LABELS: Record<string, string> = {
+  always:    "Always redeems offers",
+  sometimes: "Sometimes redeems",
+  never:     "No coupon usage",
+};
+
+const CustomerCard: React.FC<{ customer: CustomerInfo }> = ({ customer }) => (
+  <div className="drawer-section">
+    <div className="drawer-section-title">Customer</div>
+    <div className="customer-card">
+      <div className="customer-name">{customer.name}</div>
+      <div className="customer-badges">
+        <span
+          className="customer-badge"
+          style={{ background: PERSONA_COLORS[customer.persona] ?? "#888" }}
+        >
+          {PERSONA_LABELS[customer.persona] ?? customer.persona}
+        </span>
+        {customer.is_loyalty_member ? (
+          <span className="customer-badge customer-badge-loyalty">
+            ★ {customer.loyalty_points.toLocaleString()} pts
+          </span>
+        ) : (
+          <span className="customer-badge customer-badge-muted">No loyalty</span>
+        )}
+        <span className={`customer-badge customer-badge-coupon-${customer.coupon_propensity}`}>
+          {COUPON_LABELS[customer.coupon_propensity]}
+        </span>
+      </div>
+    </div>
+  </div>
+);
 
 const style = document.createElement("style");
 style.textContent = `
@@ -422,5 +474,46 @@ style.textContent = `
     font-weight: 700;
     font-size: 14px;
   }
+
+  /* Customer card */
+  .customer-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .customer-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .customer-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .customer-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+    color: white;
+    text-transform: capitalize;
+  }
+
+  .customer-badge-loyalty {
+    background: #B8860B;
+  }
+
+  .customer-badge-muted {
+    background: rgba(255,255,255,0.1);
+    color: var(--text-secondary);
+  }
+
+  .customer-badge-coupon-always   { background: #2E7D32; }
+  .customer-badge-coupon-sometimes { background: #1565C0; }
+  .customer-badge-coupon-never    { background: rgba(255,255,255,0.08); color: var(--text-secondary); }
 `;
 document.head.appendChild(style);
