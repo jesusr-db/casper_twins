@@ -1,0 +1,14 @@
+{
+  "name": "twins-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Playwright user-journey tests for the deployed Twins app",
+  "scripts": {
+    "phase1": "node phase1-journey.mjs",
+    "journey": "node journey.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.0"
+  }
+}
