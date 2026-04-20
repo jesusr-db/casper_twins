@@ -69,9 +69,9 @@ cp ../caspers-kitchens/data/canonical/generate_canonical_dataset.py datagen/gene
 cp ../caspers-kitchens/data/canonical/regenerate_all.py datagen/generators/
 ```
 
-- [ ] **Step 3: Prepend header comment to each file**
+- [ ] **Step 3: Prepend header comment to `generate_canonical_dataset.py` and `regenerate_all.py` (verbatim copies)**
 
-At the top of each of the three files (before any existing docstring or imports), insert:
+At the top of each of these two files (before any existing docstring or imports), insert:
 
 ```python
 # Ported from caspers-kitchens at commit <SHA> on 2026-04-20.
@@ -81,7 +81,47 @@ At the top of each of the three files (before any existing docstring or imports)
 
 Replace `<SHA>` with the caspers HEAD SHA from Task 0 Step 3.
 
-- [ ] **Step 4: Verify each file compiles**
+- [ ] **Step 4: Apply the SF-only filter to `generate_dimensions.py`**
+
+This generator will be modified (not verbatim) to implement Decision 8 from the spec: restrict to San Francisco locations only.
+
+Find the block near line 313 that looks like:
+```python
+locations = generate_locations()
+locations.to_parquet(f"{out}/locations.parquet", index=False)
+print(f"locations.parquet: {len(locations)} rows")
+print(f"  Cities: {locations['location_code'].value_counts().to_dict()}")
+```
+
+Replace with:
+```python
+locations = generate_locations()
+# Phase 1 scope: San Francisco locations only (22 rows). Decision 8 in
+# docs/superpowers/specs/2026-04-20-phase1-absorb-events-design.md.
+# To restore the full 88-location dataset, remove this single filter line.
+locations = locations[locations["location_code"] == "sf"].reset_index(drop=True)
+locations.to_parquet(f"{out}/locations.parquet", index=False)
+print(f"locations.parquet: {len(locations)} rows (SF only)")
+print(f"  Cities: {locations['location_code'].value_counts().to_dict()}")
+```
+
+`generate_brand_locations(locations_df)` and downstream calls already iterate off the (filtered) locations DataFrame, so the filter propagates automatically to `brand_locations.parquet`. `generate_canonical_dataset.py` reads `locations.parquet` at runtime and only emits events for its contained location_ids — no edit needed there.
+
+- [ ] **Step 5: Prepend the modified-file header comment to `generate_dimensions.py`**
+
+At the top of `datagen/generators/generate_dimensions.py`, insert:
+
+```python
+# Ported from caspers-kitchens at commit <SHA> on 2026-04-20, then modified
+# to filter to San Francisco locations only (Phase 1 scope decision).
+# Caspers is retired — this is now the authoritative copy.
+# The filter is a single line after generate_locations() returns;
+# the original 88-location behavior is recoverable by removing it.
+```
+
+Replace `<SHA>` with the caspers HEAD SHA.
+
+- [ ] **Step 6: Verify each file compiles**
 
 Run:
 ```bash
@@ -90,6 +130,21 @@ python3 -m py_compile datagen/generators/generate_dimensions.py \
                       datagen/generators/regenerate_all.py && echo "ok"
 ```
 Expected: `ok`.
+
+- [ ] **Step 7: Smoke-test the generator locally (optional but recommended)**
+
+Run:
+```bash
+cd datagen/generators && python3 generate_dimensions.py --out-dir /tmp/twins-dim-test && \
+python3 -c "
+import pandas as pd
+df = pd.read_parquet('/tmp/twins-dim-test/locations.parquet')
+assert len(df) == 22, f'expected 22 SF rows, got {len(df)}'
+assert (df['location_code'] == 'sf').all(), 'non-SF rows present'
+print(f'OK: {len(df)} SF locations')
+" && cd ../..
+```
+Expected: `OK: 22 SF locations`. If the generator requires additional args beyond `--out-dir`, adapt per the file's argparse. (This step requires `pandas` + `numpy` locally; skip if you'd prefer to verify only on Databricks.)
 
 No commit yet — commit after Task 3.
 
@@ -155,16 +210,22 @@ Expected: 3 new files under `datagen/generators/`, 1 under `pipelines/order_item
 Run:
 ```bash
 git commit -m "$(cat <<'EOF'
-feat(datagen): vendor caspers generators + DLT pipeline
+feat(datagen): vendor caspers generators + DLT pipeline (SF-only)
 
-Adds three Python generators (ported verbatim from caspers-kitchens):
-  - datagen/generators/generate_dimensions.py
-  - datagen/generators/generate_canonical_dataset.py
-  - datagen/generators/regenerate_all.py (wrapper)
+Adds three Python generators:
+  - datagen/generators/generate_dimensions.py (MODIFIED: SF-only filter)
+  - datagen/generators/generate_canonical_dataset.py (verbatim)
+  - datagen/generators/regenerate_all.py (wrapper, verbatim)
 
 And the DLT pipeline code that produces lakeflow.all_events + silver/gold
 aggregates from the events UC Volume:
   - pipelines/order_items/transformations/transformation.py
+
+Phase 1 scope is San Francisco locations only (Decision 8 in the spec);
+generate_dimensions.py carries a one-line filter after generate_locations()
+restricting output to location_code='sf' (22 rows). generate_canonical_dataset.py
+reads the filtered locations.parquet at runtime and emits events only for
+those SF stores — ~250K events vs ~1M in the original 88-location dataset.
 
 All files carry headers naming the caspers source SHA. Caspers is retired
 per 2026-04-20 user decision; these are now the authoritative copies.
@@ -1085,7 +1146,7 @@ Makes twins the sole producer of `lakeflow.all_events` and `simulator.*` dimensi
    - Expected wall-time: 15–25 min (bootstrap_datagen dominates first run).
 
 5. **Unpause replay job**
-   - After setup-lakebase's `canonical_data` task completes and `simulator.locations` has 88 rows:
+   - After setup-lakebase's `canonical_data` task completes and `simulator.locations` has **22 rows** (SF-only):
    - Edit `databricks.yml` → `pause_status: UNPAUSED` on `twins-datagen-replay` → commit → `bundle deploy`.
    - OR via CLI: `databricks jobs update --job-id <id> --json '{"new_settings": {"schedule": {"pause_status": "UNPAUSED", "quartz_cron_expression": "0 0/3 * * * ?", "timezone_id": "UTC"}}}'`.
 
@@ -1097,7 +1158,7 @@ Makes twins the sole producer of `lakeflow.all_events` and `simulator.*` dimensi
 - [x] `python -m py_compile setup/*.py datagen/generators/*.py pipelines/order_items/transformations/transformation.py` passes
 - [x] Notebook JSON valid
 - [ ] **Post-cutover**: `twins-order-items` pipeline RUNNING; `lakeflow.all_events` has rows
-- [ ] **Post-cutover**: `SELECT COUNT(*) FROM simulator.locations` == 88
+- [ ] **Post-cutover**: `SELECT COUNT(*) FROM simulator.locations` == 22 (SF-only per Decision 8)
 - [ ] **Post-cutover, 10 min later**: `twins-datagen-replay` has ≥3 SUCCESS runs; `MAX(ts)` advancing ~3 hours sim-time per tick
 - [ ] **Post-cutover, 30 min later**: App loads; orders + drivers + KPIs render; no 503s
 - [ ] **Destroy/setup cycle**: `bundle run destroy-lakebase` → `./scripts/deploy.sh` brings everything back clean

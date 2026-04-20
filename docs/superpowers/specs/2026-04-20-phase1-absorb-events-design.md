@@ -32,6 +32,7 @@ This project absorbs everything caspers produces that twins consumes, ships it a
 
 ## Non-goals
 
+- **Non-SF locations** (Silicon Valley, Bellevue, Chicago) — Phase 1 scope is SF only (Decision 8). The original 88-location dataset is recoverable by removing the one-line filter in `generate_dimensions.py` and re-running setup, but that's out of scope for this project.
 - Porting caspers' LLM-backed stages (menus, inspections, refunder, complaints agents).
 - Replacing the `.ipynb` format for absorbed live-path notebooks — user chose verbatim copy.
 - Moving to a new catalog name — staying on `vdm_classic_rikfy0_catalog`.
@@ -54,6 +55,7 @@ This project absorbs everything caspers produces that twins consumes, ships it a
 | 5 | `max_concurrent_runs: 1` on the scheduled replay job | Simple, effective, matches Databricks-native knobs |
 | 6 | Keep absorbed notebooks as `.ipynb` | Verbatim copy minimizes behavior drift |
 | 7 | One atomic PR | Matches big-bang cutover; one review, one revert |
+| 8 | **Scope generators to San Francisco only** (22 locations, `location_code='sf'`) | Cuts data volume by ~75% (1M → ~250K events, 88 → 22 locations); focused demo; minimal generator edit (one filter line); `generate_canonical_dataset.py` picks up the filter automatically via its read of `locations.parquet` |
 
 ---
 
@@ -107,11 +109,13 @@ Caspers is gone from this picture.
 |---|---|---|---|
 | `datagen/canonical_data.ipynb` | Notebook | Copied verbatim from `../caspers-kitchens/stages/canonical_data.ipynb` | Live seeder — one-shot per setup; reads dim parquets, writes `simulator.*` Delta tables, initializes watermark |
 | `datagen/canonical_generator_simple.ipynb` | Notebook | Copied verbatim from `../caspers-kitchens/data/canonical/canonical_generator_simple.ipynb` | Replay engine — scheduled every 3 min; reads events.parquet + watermark, appends JSON to events Volume, advances watermark |
-| `datagen/generators/generate_dimensions.py` | Python | Copied from `../caspers-kitchens/data/canonical/generate_dimensions.py` | Offline dim generator; `numpy.random.seed(42)` |
-| `datagen/generators/generate_canonical_dataset.py` | Python | Copied from `../caspers-kitchens/data/canonical/generate_canonical_dataset.py` | Offline event generator; deterministic |
-| `datagen/generators/regenerate_all.py` | Python | Copied from `../caspers-kitchens/data/canonical/regenerate_all.py` | Wrapper: runs both generators in sequence; accepts `--out-dir` |
+| `datagen/generators/generate_dimensions.py` | Python | Ported from `../caspers-kitchens/data/canonical/generate_dimensions.py` + **SF filter added** | Offline dim generator; `numpy.random.seed(42)`. **Modified to retain only `location_code == 'sf'` rows before writing `locations.parquet`** (Decision 8) |
+| `datagen/generators/generate_canonical_dataset.py` | Python | Copied verbatim from `../caspers-kitchens/data/canonical/generate_canonical_dataset.py` | Offline event generator; deterministic. Reads the filtered `locations.parquet` and emits events only for SF stores automatically — no code change needed |
+| `datagen/generators/regenerate_all.py` | Python | Copied verbatim from `../caspers-kitchens/data/canonical/regenerate_all.py` | Wrapper: runs both generators in sequence; accepts `--out-dir` |
 
-**Header comment** on each vendored file: `# Ported from caspers-kitchens at commit <SHA> on 2026-04-20. Caspers is retired — this is now the authoritative copy. Modifying this file is a twins-internal decision.`
+**Header comment** on verbatim-ported files: `# Ported from caspers-kitchens at commit <SHA> on 2026-04-20. Caspers is retired — this is now the authoritative copy. Modifying this file is a twins-internal decision.`
+
+**Header comment** on `generate_dimensions.py` (modified copy): `# Ported from caspers-kitchens at commit <SHA> on 2026-04-20, then modified to filter to San Francisco locations only (Phase 1 scope decision). Caspers is retired — this is now the authoritative copy. The filter is a single line after generate_locations() returns; the original 88-location behavior is recoverable by removing it.`
 
 ### New directory: `pipelines/order_items/`
 
@@ -321,7 +325,7 @@ Chained effect:
 3. `apps deploy` — redeploys the twins app.
 
 ### Step 4 — Unpause replay job
-After `setup-lakebase` completes and you've confirmed `canonical_data` seeded `simulator.locations` (88 rows), unpause the replay:
+After `setup-lakebase` completes and you've confirmed `canonical_data` seeded `simulator.locations` (**22 rows**, all `location_code='sf'` per Decision 8), unpause the replay:
 ```bash
 # Via UI or CLI:
 databricks jobs update --job-id <twins-datagen-replay-id> \
@@ -358,7 +362,7 @@ There is no clean roll-forward/roll-back midstream — caspers was retired. Plan
 - [ ] `databricks pipelines list -p DEFAULT | grep twins-order-items` shows PROCESSING or RUNNING.
 - [ ] `databricks jobs list -p DEFAULT | grep twins-datagen-replay` — job exists, check pause_status.
 - [ ] `SELECT COUNT(*) FROM vdm_classic_rikfy0_catalog.lakeflow.all_events;` returns > 0.
-- [ ] `SELECT COUNT(*) FROM vdm_classic_rikfy0_catalog.simulator.locations;` returns exactly **88**.
+- [ ] `SELECT COUNT(*) FROM vdm_classic_rikfy0_catalog.simulator.locations;` returns exactly **22** (SF-only per Decision 8; all rows have `location_code = 'sf'`).
 - [ ] Browser: app URL loads; market tabs render; orders appear.
 
 ### Post-unpause (wait 10–15 min for 3–4 replay ticks)
