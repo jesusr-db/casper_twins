@@ -155,9 +155,10 @@ resources:
               - "psycopg2-binary>=2.9.0"
               - "databricks-sdk>=0.49.0"
               - "faker>=24.0.0"
-              - "pandas>=2.0.0"
-              - "numpy>=1.24.0"
-              - "pyarrow>=14.0.0"
+              # pandas/numpy/pyarrow come pre-installed in the serverless runtime;
+              # pinning them here triggers library-install conflicts. bootstrap_datagen
+              # invokes the generators via subprocess using the same runtime, so they
+              # pick up the pre-installed libs.
       run_as:
         user_name: jesus.rodriguez@databricks.com
       permissions:
