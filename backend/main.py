@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.db import close_pool, init_pool
-from backend.routes import cx, drivers, markets, orders, playback
+from backend.routes import drivers, markets, orders, playback
 
 logging.basicConfig(
     level=logging.INFO,
@@ -70,12 +70,6 @@ class DBErrorMiddleware(BaseHTTPMiddleware):
                     status_code=503,
                     content={"error": "data_not_ready", "detail": f"Table '{table}' not synced yet."},
                 )
-            if "InsufficientPrivilege" in type(exc).__name__ or "permission denied" in str(exc).lower():
-                logger.warning("Insufficient privileges: %s — run setup-lakebase finalize task", exc)
-                return JSONResponse(
-                    status_code=503,
-                    content={"error": "permission_denied", "detail": "Database permissions not yet applied. Run setup-lakebase job."},
-                )
             raise
 
 app.add_middleware(DBErrorMiddleware)
@@ -86,7 +80,6 @@ app.include_router(markets.router)
 app.include_router(orders.router)
 app.include_router(drivers.router)
 app.include_router(playback.router)
-app.include_router(cx.router)
 
 
 # Health check
