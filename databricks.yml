@@ -131,9 +131,15 @@ resources:
           spark_python_task:
             python_file: setup/provision_lakebase.py
           environment_key: setup_env
-        - task_key: generate_customers
+        - task_key: create_syncs_initial
           depends_on:
             - task_key: provision_lakebase
+          spark_python_task:
+            python_file: setup/create_syncs.py
+          environment_key: setup_env
+        - task_key: generate_customers
+          depends_on:
+            - task_key: create_syncs_initial
           spark_python_task:
             python_file: setup/generate_customers.py
           environment_key: setup_env
