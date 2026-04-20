@@ -1,0 +1,5 @@
+node_modules/
+screenshots*/
+results.json
+auth.json
+package-lock.json

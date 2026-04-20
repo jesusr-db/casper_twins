@@ -159,7 +159,18 @@ def ensure_syncs(w: WorkspaceClient) -> None:
                 or "not found" in msg_lower
                 or "does not exist" in msg_lower
             ):
-                _handle_existing_sync(w, name, source, policy, pk, pg_host, pg_user, pg_password)
+                # _handle_existing_sync may itself raise if the source Delta
+                # genuinely doesn't exist yet (e.g. customers table before
+                # generate_customers runs on a fresh catalog). Catch + continue
+                # so the rest of SYNCS gets processed; subsequent create_syncs
+                # runs will retry and succeed once the source materializes.
+                try:
+                    _handle_existing_sync(w, name, source, policy, pk, pg_host, pg_user, pg_password)
+                except Exception as e2:
+                    log.warning(
+                        "Sync heal for %s failed: %s (continuing — will retry on next create_syncs run)",
+                        source, e2,
+                    )
             else:
                 log.warning("Sync creation for %s failed: %s (continuing)", source, e)
 
