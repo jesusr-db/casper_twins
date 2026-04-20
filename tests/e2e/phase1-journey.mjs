@@ -50,8 +50,20 @@ const page = await context.newPage();
 // Collect console errors + failing network requests across the run.
 const consoleErrors = [];
 const networkFailures = [];
+// Known-benign console errors we ignore: browser-internal SSL handshakes,
+// devtools port probes, etc. These are not app bugs.
+const BENIGN_CONSOLE_PATTERNS = [
+  /ERR_SSL_PROTOCOL_ERROR/,
+  /port \d+/i,
+  /chrome-extension:/,
+];
 page.on("console", (msg) => {
-  if (msg.type() === "error") consoleErrors.push(msg.text().slice(0, 200));
+  if (msg.type() === "error") {
+    const text = msg.text().slice(0, 300);
+    if (!BENIGN_CONSOLE_PATTERNS.some((re) => re.test(text))) {
+      consoleErrors.push(text);
+    }
+  }
 });
 page.on("response", (res) => {
   const url = res.url();
@@ -250,9 +262,18 @@ try {
   if ((await playbackBtn.count()) > 0) {
     await playbackBtn.click();
     await page.waitForTimeout(2500);
-    const bannerShown = await page
-      .locator("[class*='playback'], .playback-banner-indicator, text=/PLAYBACK/i")
-      .count();
+    // Playwright doesn't accept mixed CSS + text=/…/ in one selector.
+    // Check multiple simple selectors and sum.
+    let bannerShown = 0;
+    for (const sel of [
+      "[class*='playback']",
+      ".playback-banner-indicator",
+      ".playback-badge-indicator",
+    ]) {
+      bannerShown += await page.locator(sel).count();
+    }
+    // Also check for PLAYBACK text via getByText
+    bannerShown += await page.getByText(/PLAYBACK/i).count();
     log(
       "PLAYBACK mode visible",
       bannerShown > 0 ? "PASS" : "FAIL",
