@@ -4,6 +4,11 @@ bundle:
 workspace:
   profile: DEFAULT
 
+variables:
+  catalog:
+    description: "UC catalog for twins data"
+    default: vdm_classic_rikfy0_catalog
+
 resources:
   apps:
     twins-app:
@@ -25,10 +30,32 @@ resources:
         - user_name: jesus.rodriguez@databricks.com
           level: CAN_MANAGE
 
+  schemas:
+    simulator:
+      catalog_name: ${var.catalog}
+      name: simulator
+      comment: "Store metadata + dim tables + event replay volume (twins-owned)"
+    lakeflow:
+      catalog_name: ${var.catalog}
+      name: lakeflow
+      comment: "Event stream + orders_enriched + silver/gold aggregates (twins-owned)"
+
+  volumes:
+    simulator_events:
+      catalog_name: ${var.catalog}
+      schema_name: simulator
+      name: events
+      comment: "JSON event files appended by datagen-replay; consumed by twins-order-items DLT pipeline"
+    simulator_canonical_seed:
+      catalog_name: ${var.catalog}
+      schema_name: simulator
+      name: canonical_seed
+      comment: "Generator output (events.parquet + dim parquets); filled by bootstrap_datagen"
+
   pipelines:
     orders-enriched:
       name: "twins-orders-enriched"
-      catalog: vdm_classic_rikfy0_catalog
+      catalog: ${var.catalog}
       schema: lakeflow
       serverless: true
       continuous: true
@@ -37,7 +64,26 @@ resources:
             path: pipelines/orders_enriched.sql
       configuration:
         app: twins
-        source_catalog: vdm_classic_rikfy0_catalog
+        source_catalog: ${var.catalog}
+      tags:
+        app: twins
+      permissions:
+        - user_name: jesus.rodriguez@databricks.com
+          level: CAN_MANAGE
+
+    order-items:
+      name: "twins-order-items"
+      catalog: ${var.catalog}
+      schema: lakeflow
+      serverless: true
+      continuous: true
+      libraries:
+        - file:
+            path: pipelines/order_items/transformations/transformation.py
+      configuration:
+        RAW_DATA_CATALOG: ${var.catalog}
+        RAW_DATA_SCHEMA: simulator
+        RAW_DATA_VOLUME: events
       tags:
         app: twins
       permissions:
@@ -48,13 +94,32 @@ resources:
     setup-lakebase:
       name: "twins-setup-lakebase"
       description: >
-        Multi-task infrastructure setup: triggers pipeline, provisions Lakebase,
-        creates synced tables, then finalizes with indexes/grants/verify.
-        Each task can be retried independently. Idempotent — safe to re-run.
+        Multi-task infrastructure setup: generates seed data, seeds simulator
+        dim tables, triggers DLT pipelines, provisions Lakebase, creates
+        synced tables, finalizes with indexes/grants/verify. Each task can be
+        retried independently. Idempotent — safe to re-run.
       tags:
         app: twins
       tasks:
+        - task_key: bootstrap_datagen
+          spark_python_task:
+            python_file: setup/bootstrap_datagen.py
+          environment_key: setup_env
+        - task_key: canonical_data
+          depends_on:
+            - task_key: bootstrap_datagen
+          notebook_task:
+            notebook_path: ${workspace.root_path}/datagen/canonical_data
+            base_parameters:
+              CATALOG: ${var.catalog}
+              SIMULATOR_SCHEMA: simulator
+              EVENTS_VOLUME: events
+              SEED_DIR: /Volumes/vdm_classic_rikfy0_catalog/simulator/canonical_seed
+              START_DAY: "70"
+              SPEED_MULTIPLIER: "60.0"
         - task_key: trigger_pipeline
+          depends_on:
+            - task_key: canonical_data
           spark_python_task:
             python_file: setup/trigger_pipeline.py
           environment_key: setup_env
@@ -90,6 +155,9 @@ resources:
               - "psycopg2-binary>=2.9.0"
               - "databricks-sdk>=0.49.0"
               - "faker>=24.0.0"
+              - "pandas>=2.0.0"
+              - "numpy>=1.24.0"
+              - "pyarrow>=14.0.0"
       run_as:
         user_name: jesus.rodriguez@databricks.com
       permissions:
@@ -99,9 +167,11 @@ resources:
     destroy-lakebase:
       name: "twins-destroy-lakebase"
       description: >
-        Tears down all resources created by setup-lakebase that are not managed
-        by DAB: synced tables, UC catalog, Lakebase instance, and DLT-created
-        tables. Idempotent — safe to re-run.
+        Tears down all twins-owned resources not managed by DAB: datagen
+        replay (paused first), synced tables, Lakebase instance, DLT-created
+        tables from both pipelines, and absorbed simulator dim tables.
+        Idempotent — safe to re-run. DAB resources (app, pipelines, jobs,
+        schemas, volumes) are removed separately via `bundle destroy`.
       tags:
         app: twins
       tasks:
@@ -121,11 +191,46 @@ resources:
         - user_name: jesus.rodriguez@databricks.com
           level: CAN_MANAGE
 
+    datagen-replay:
+      name: "twins-datagen-replay"
+      description: >
+        Replay engine — every 3 minutes, appends a batch of event JSON files
+        to /Volumes/.../simulator/events/ based on a watermark. Consumed by
+        the twins-order-items DLT pipeline to produce lakeflow.all_events.
+
+        IMPORTANT: landed PAUSED. Unpause only after setup-lakebase has
+        completed its canonical_data task (otherwise concurrent writes to
+        the watermark + events volume can race).
+      tags:
+        app: twins
+      max_concurrent_runs: 1
+      schedule:
+        quartz_cron_expression: "0 0/3 * * * ?"
+        timezone_id: UTC
+        pause_status: PAUSED
+      tasks:
+        - task_key: replay
+          notebook_task:
+            notebook_path: ${workspace.root_path}/datagen/canonical_generator_simple
+            base_parameters:
+              CATALOG: ${var.catalog}
+              SCHEMA: simulator
+              VOLUME: events
+              SCHEDULE_MINUTES: "3"
+              SPEED_MULTIPLIER: "60.0"
+              START_DAY: "70"
+      run_as:
+        user_name: jesus.rodriguez@databricks.com
+      permissions:
+        - user_name: jesus.rodriguez@databricks.com
+          level: CAN_MANAGE
+
 sync:
   include:
     - "pipelines/**"
     - "backend/**"
     - "frontend/dist/**"
     - "setup/**"
+    - "datagen/**"
     - "app.yaml"
     - "requirements.txt"
