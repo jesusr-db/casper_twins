@@ -122,11 +122,15 @@ def main():
     for name in PIPELINE_NAMES:
         trigger_and_wait(w, name)
 
-    # Tables produced by both pipelines must exist before downstream syncs run.
+    # Wait only for all_events (Bronze — produced by twins-order-items, no
+    # dependencies on dim tables). orders_enriched + driver_positions come from
+    # twins-orders-enriched which also has a flow (order_customer_map) that
+    # depends on simulator.customer_address_index — a table generate_customers
+    # creates LATER. On a fresh catalog, that pipeline won't succeed until
+    # downstream tasks finish. It's continuous, so it retries async and catches
+    # up naturally.
     target_tables = [
         f"{SOURCE_CATALOG}.lakeflow.all_events",          # from twins-order-items
-        f"{SOURCE_CATALOG}.lakeflow.orders_enriched",     # from twins-orders-enriched
-        f"{SOURCE_CATALOG}.lakeflow.driver_positions",    # from twins-orders-enriched
     ]
     wait_for_tables(w, target_tables)
 
