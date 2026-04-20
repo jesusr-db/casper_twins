@@ -111,7 +111,7 @@ resources:
           depends_on:
             - task_key: bootstrap_datagen
           notebook_task:
-            notebook_path: ${workspace.root_path}/datagen/canonical_data
+            notebook_path: ${workspace.file_path}/datagen/canonical_data
             base_parameters:
               CATALOG: ${var.catalog}
               SIMULATOR_SCHEMA: simulator
@@ -214,7 +214,7 @@ resources:
       tasks:
         - task_key: replay
           notebook_task:
-            notebook_path: ${workspace.root_path}/datagen/canonical_generator_simple
+            notebook_path: ${workspace.file_path}/datagen/canonical_generator_simple
             base_parameters:
               CATALOG: ${var.catalog}
               SCHEMA: simulator
