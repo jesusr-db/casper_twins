@@ -137,9 +137,40 @@ CITIES = [
     },
 ]
 
-# Radius in degrees (~5-8 miles)
+# Radius in degrees (~5-8 miles) — used for non-SF cities.
 SPREAD_LAT = 0.06  # ~4 miles
 SPREAD_LON = 0.08  # ~5 miles
+
+# Real SF neighborhood centers — lookup by neighborhood name.
+# Keeps named stores on land + in their named neighborhood. Tight jitter
+# (~150m) is added so successive generations aren't identical without
+# drifting off the peninsula.
+SF_NEIGHBORHOOD_COORDS = {
+    "Mission":            (37.7599, -122.4148),
+    "SOMA":               (37.7785, -122.3997),
+    "Marina":             (37.8024, -122.4371),
+    "Castro":             (37.7609, -122.4350),
+    "Sunset":             (37.7517, -122.4938),
+    "Richmond":           (37.7786, -122.4802),
+    "Noe Valley":         (37.7502, -122.4337),
+    "Hayes Valley":       (37.7772, -122.4251),
+    "Tenderloin":         (37.7843, -122.4144),
+    "Potrero Hill":       (37.7574, -122.4019),
+    "Excelsior":          (37.7240, -122.4310),
+    "Bayview":            (37.7316, -122.3893),
+    "Bernal Heights":     (37.7383, -122.4152),
+    "Dogpatch":           (37.7586, -122.3892),
+    "Pacific Heights":    (37.7923, -122.4351),
+    "Inner Sunset":       (37.7629, -122.4681),
+    "Outer Sunset":       (37.7532, -122.4983),
+    "North Beach":        (37.8003, -122.4103),
+    "Chinatown":          (37.7941, -122.4078),
+    "Financial District": (37.7946, -122.3999),
+    "Haight-Ashbury":     (37.7693, -122.4464),
+    "Glen Park":          (37.7336, -122.4345),
+}
+# ~150m of jitter (0.0015° lat ≈ 167m; 0.0015° lon at SF latitude ≈ 132m).
+SF_STORE_JITTER_DEG = 0.0015
 
 
 def generate_locations():
@@ -163,13 +194,22 @@ def generate_locations():
         )
 
         for i in range(n_stores):
-            # Spread stores around city center with random offsets
-            angle = np.random.uniform(0, 2 * np.pi)
-            radius_frac = np.sqrt(np.random.uniform(0.05, 1.0))  # sqrt for uniform area distribution
-            lat = city["center_lat"] + radius_frac * SPREAD_LAT * np.sin(angle)
-            lon = city["center_lon"] + radius_frac * SPREAD_LON * np.cos(angle)
-
             neighborhood = city["neighborhoods"][i]
+
+            # Prefer real neighborhood coordinates for SF (stops pins landing
+            # in the Pacific or the Bay). Non-SF cities keep the random-radius
+            # behavior — Phase 1 of twins only uses SF, but the generators
+            # remain capable of producing the full 88-location dataset.
+            if city["code"] == "sf" and neighborhood in SF_NEIGHBORHOOD_COORDS:
+                base_lat, base_lon = SF_NEIGHBORHOOD_COORDS[neighborhood]
+                lat = base_lat + np.random.uniform(-SF_STORE_JITTER_DEG, SF_STORE_JITTER_DEG)
+                lon = base_lon + np.random.uniform(-SF_STORE_JITTER_DEG, SF_STORE_JITTER_DEG)
+            else:
+                # Spread stores around city center with random offsets.
+                angle = np.random.uniform(0, 2 * np.pi)
+                radius_frac = np.sqrt(np.random.uniform(0.05, 1.0))  # sqrt for uniform area distribution
+                lat = city["center_lat"] + radius_frac * SPREAD_LAT * np.sin(angle)
+                lon = city["center_lon"] + radius_frac * SPREAD_LON * np.cos(angle)
             street = city["streets"][i % len(city["streets"])]
             street_num = np.random.randint(100, 9999)
 

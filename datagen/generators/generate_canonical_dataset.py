@@ -210,20 +210,70 @@ def haversine_miles(lat1, lon1, lat2, lon2):
     return R * 2 * math.asin(math.sqrt(a))
 
 
+# Approximate SF peninsula land polygon (8 vertices, CCW).
+# Excludes Pacific Ocean to the west, SF Bay along the east, and waters south
+# and north of the peninsula. Coarse but sufficient to keep delivery pins out
+# of the water — individual inland bodies (e.g. Lake Merced) are tiny enough
+# to be acceptable noise.
+SF_LAND_POLYGON = [
+    (37.7080, -122.5150),  # SW — Fort Funston / Pacific coast south
+    (37.8100, -122.5150),  # NW — Lands End / Pacific north
+    (37.8100, -122.4080),  # N  — Fort Mason / bay shoreline north
+    (37.7960, -122.3900),  # NE — Embarcadero / Ferry Building
+    (37.7620, -122.3800),  # E  — Mission Bay / bay shore middle
+    (37.7300, -122.3750),  # SE — Candlestick
+    (37.7100, -122.3900),  # S  — Brisbane border
+    (37.7080, -122.4500),  # SW-middle — Lake Merced border
+]
+
+
+def _point_in_polygon(lat: float, lon: float, polygon: list) -> bool:
+    """Ray-casting point-in-polygon test. Polygon is list of (lat, lon)."""
+    n = len(polygon)
+    inside = False
+    j = n - 1
+    for i in range(n):
+        lat_i, lon_i = polygon[i]
+        lat_j, lon_j = polygon[j]
+        if ((lon_i > lon) != (lon_j > lon)) and (
+            lat < (lat_j - lat_i) * (lon - lon_i) / (lon_j - lon_i + 1e-12) + lat_i
+        ):
+            inside = not inside
+        j = i
+    return inside
+
+
 def random_customer_location(store_lat, store_lon, loc_code):
-    """Generate a random customer location within delivery radius of the store."""
+    """Generate a random customer location within delivery radius of the store.
+
+    For SF stores, rejection-samples against SF_LAND_POLYGON to keep delivery
+    pins out of the Pacific and the Bay. After 40 rejections, falls back to
+    the last generated point (edge case — effectively never happens because
+    the polygon is large and the exponential-distance sampler skews short).
+    """
     lon_scale = LON_SCALE.get(loc_code, MILES_PER_DEG_LON_SF)
+    check_polygon = loc_code == "sf"
 
-    # Random distance (1-4 miles, skewed toward closer)
-    dist_miles = np.random.exponential(1.5)
-    dist_miles = min(dist_miles, CUSTOMER_RADIUS_MILES)
-    dist_miles = max(dist_miles, 0.3)
+    last_lat, last_lon = store_lat, store_lon
+    for _ in range(40):
+        # Random distance (1-4 miles, skewed toward closer).
+        dist_miles = np.random.exponential(1.5)
+        dist_miles = min(dist_miles, CUSTOMER_RADIUS_MILES)
+        dist_miles = max(dist_miles, 0.3)
 
-    angle = np.random.uniform(0, 2 * np.pi)
-    dlat = (dist_miles * math.sin(angle)) / MILES_PER_DEG_LAT
-    dlon = (dist_miles * math.cos(angle)) / lon_scale
+        angle = np.random.uniform(0, 2 * np.pi)
+        dlat = (dist_miles * math.sin(angle)) / MILES_PER_DEG_LAT
+        dlon = (dist_miles * math.cos(angle)) / lon_scale
 
-    return store_lat + dlat, store_lon + dlon
+        cand_lat = store_lat + dlat
+        cand_lon = store_lon + dlon
+
+        if not check_polygon or _point_in_polygon(cand_lat, cand_lon, SF_LAND_POLYGON):
+            return cand_lat, cand_lon
+        last_lat, last_lon = cand_lat, cand_lon
+
+    # Fallback: use the store's own coords (guaranteed on land post-Phase 1 fix).
+    return store_lat, store_lon
 
 
 def generate_jittered_route(store_lat, store_lon, cust_lat, cust_lon):
