@@ -116,9 +116,9 @@ resources:
               CATALOG: ${var.catalog}
               SIMULATOR_SCHEMA: simulator
               EVENTS_VOLUME: events
-              SEED_DIR: /Volumes/vdm_classic_rikfy0_catalog/simulator/canonical_seed
               START_DAY: "70"
               SPEED_MULTIPLIER: "60.0"
+              SCHEDULE_MINUTES: "3"
         - task_key: trigger_pipeline
           depends_on:
             - task_key: canonical_data
