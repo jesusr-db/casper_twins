@@ -100,7 +100,7 @@ def grant_app_sp_access(w: WorkspaceClient, host: str) -> None:
 
     quoted_sp = f'"{sp_client_id}"'
     cur.execute(f"GRANT CONNECT ON DATABASE {PG_DATABASE} TO {quoted_sp}")
-    for schema in ["public", "simulator", "lakeflow", "complaints", "recommender"]:
+    for schema in ["public", "simulator", "lakeflow"]:
         try:
             cur.execute(f"GRANT USAGE ON SCHEMA {schema} TO {quoted_sp}")
             cur.execute(f"GRANT SELECT ON ALL TABLES IN SCHEMA {schema} TO {quoted_sp}")
