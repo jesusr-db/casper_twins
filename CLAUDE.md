@@ -24,7 +24,6 @@
 ## Backend / Postgres
 
 - Use `make_interval(days => $N::int)` for parameterized intervals. **Not** `INTERVAL '$N days'` — that treats the param as a string literal, not a bind variable.
-- `_validate_days()` in `cx.py` allows 0 (= all time, no date filter) but rejects negatives.
 - All SQL uses asyncpg `$N` parameterized queries. Never interpolate values into SQL strings.
 - TypeScript: don't cast interface types to `Record<string, unknown>` — TS strict mode rejects it. Use an explicit field map helper instead (see `getOrderTimestamp()`).
 
@@ -45,7 +44,7 @@
 - New synced tables require Delta source tables to exist first. `generate_customers` must run before `create_syncs` for customer syncs.
 - `order_customer_map` DLT streaming table LEFT JOINs `customer_address_index` (static). Re-generating the address index won't re-map already-processed orders.
 - `generate_customers.py` uses SparkSession for Delta writes + psycopg2 for Postgres reads. Future scripts following this pattern need both imports.
-- Current SYNCS count in `config.py`: **8** (5 original + 1 orders_enriched + 2 CX).
+- Current SYNCS count in `config.py`: **6** (5 original + 1 orders_enriched). As of 2026-04-20, twins no longer consumes `complaints.*` or `recommender.*` tables — those remain caspers-produced. Orphaned `complaints_synced` + `refund_recommendations_synced` syncs in the shared catalog and twins Lakebase instance persist until the next `bundle run destroy-lakebase` cycle wipes the instance.
 
 ## Testing
 

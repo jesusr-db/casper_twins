@@ -1,5 +1,4 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { Link, useSearchParams } from "react-router-dom";
 import { MarketTabs } from "./components/MarketTabs";
 import { KpiBar } from "./components/KpiBar";
 import { MapView } from "./components/MapView";
@@ -201,13 +200,6 @@ const App: React.FC = () => {
     []
   );
 
-  // Deep-link: open order drawer when ?order=<id> is in the URL (from CX panel links)
-  const [searchParams] = useSearchParams();
-  useEffect(() => {
-    const orderId = searchParams.get("order");
-    if (orderId) handleDriverClick(orderId);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   const handleDrawerClose = useCallback(() => {
     setIsDrawerOpen(false);
     setSelectedOrderId(null);
@@ -288,7 +280,6 @@ const App: React.FC = () => {
         <div className="logo-area">
           <div className="app-logo">D</div>
           <span className="app-title">Delivery Digital Twin</span>
-          <Link to="/cx" className="cx-nav-link">CX</Link>
           {mode === "playback" && (
             <span className="playback-badge-indicator">PLAYBACK</span>
           )}

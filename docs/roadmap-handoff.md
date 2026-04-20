@@ -115,13 +115,8 @@ Combined with the self-heal logic already in `create_syncs.py` (added 2026-04-16
 ### Synthetic Customer Dataset ✅ Complete 2026-03-19
 103K customers generated from order history — personas, loyalty, coupon propensity, store affinity. Synced to Lakebase (`customers_synced`, `customer_address_index_synced`). Customer card shown in Order Drawer.
 
-### Customer Experience
-- **Refund Manager** — track and process refund requests tied to order IDs; surface refund rate as a store KPI
-- **Complaint Tracker** — log and categorize customer complaints per order/store; trend view by complaint type (late, wrong item, cold food)
-- **Offers & Coupons** — view active promotions per market, track redemption rates, correlate with order volume spikes
-
 ### Store Intelligence
-- **In-Store Performance Scorecard** — per-store leaderboard across KPIs: avg delivery time, SLA breach rate, order volume, refund rate, complaint rate; exportable for ops reviews
+- **In-Store Performance Scorecard** — per-store leaderboard across KPIs: avg delivery time, SLA breach rate, order volume; exportable for ops reviews
 
 ### Platform
 - Crustopher / Genie analytics tab — conversational analytics inside the app
