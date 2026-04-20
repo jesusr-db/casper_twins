@@ -39,10 +39,25 @@ SEED_VOLUME = "canonical_seed"
 SEED_VOLUME_PATH = f"/Volumes/{CATALOG}/{SCHEMA}/{SEED_VOLUME}"
 MARKER_PATH = f"{SEED_VOLUME_PATH}/.seed-complete"
 
-# Generator source lives at /Workspace/.../files/datagen/generators/ when the
-# bundle is deployed. Resolve relative to this file.
-REPO_ROOT = Path(__file__).resolve().parent.parent
-GENERATORS_DIR = REPO_ROOT / "datagen" / "generators"
+
+def resolve_generators_dir() -> Path:
+    """Find datagen/generators/ in the deployed bundle.
+
+    In the serverless spark_python_task context, __file__ is not defined
+    (the task wraps the file in exec(compile(...))). Resolve via:
+      1. Explicit CLI arg (sys.argv[1]) if provided by the DAB task.
+      2. Look up the user's bundle files path via WorkspaceClient.
+    """
+    if len(sys.argv) > 1 and sys.argv[1].strip():
+        return Path(sys.argv[1])
+    w = WorkspaceClient()
+    username = w.current_user.me().user_name
+    return Path(
+        f"/Workspace/Users/{username}/.bundle/twins-digital-twin/default/files/datagen/generators"
+    )
+
+
+GENERATORS_DIR = resolve_generators_dir()
 
 # Parquets we expect the generators to produce (relative to their canonical_dataset/ subdir).
 EXPECTED_PARQUETS = [

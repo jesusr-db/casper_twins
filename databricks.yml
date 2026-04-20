@@ -104,6 +104,8 @@ resources:
         - task_key: bootstrap_datagen
           spark_python_task:
             python_file: setup/bootstrap_datagen.py
+            parameters:
+              - ${workspace.file_path}/datagen/generators
           environment_key: setup_env
         - task_key: canonical_data
           depends_on:
