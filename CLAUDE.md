@@ -45,6 +45,8 @@
 - `order_customer_map` DLT streaming table LEFT JOINs `customer_address_index` (static). Re-generating the address index won't re-map already-processed orders.
 - `generate_customers.py` uses SparkSession for Delta writes + psycopg2 for Postgres reads. Future scripts following this pattern need both imports.
 - Current SYNCS count in `config.py`: **6** (5 original + 1 orders_enriched). As of 2026-04-20, twins no longer consumes `complaints.*` or `recommender.*` tables — those remain caspers-produced. Orphaned `complaints_synced` + `refund_recommendations_synced` syncs in the shared catalog and twins Lakebase instance persist until the next `bundle run destroy-lakebase` cycle wipes the instance.
+- **As of 2026-04-20, twins owns event generation.** Caspers-kitchens is retired. `lakeflow.all_events` + `simulator.*` dim tables are now produced by twins' own DAB-declared `twins-order-items` DLT pipeline (source: `pipelines/order_items/transformations/transformation.py`) and scheduled `twins-datagen-replay` job (source: `datagen/canonical_generator_simple.ipynb`). Seed data is regenerated on first setup by `setup/bootstrap_datagen.py` (idempotent via `.seed-complete` marker in `/Volumes/.../simulator/canonical_seed/`). Watermark race prevented by `max_concurrent_runs: 1` on the scheduled job.
+- **Phase 1 scope is SF only** — `generate_dimensions.py` filters `locations` to `location_code == 'sf'` (22 rows instead of 88). Full 88-location dataset is recoverable by removing the one-line filter.
 
 ## Testing
 
