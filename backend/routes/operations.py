@@ -8,6 +8,7 @@ Filter via `?stores=comma,separated,location_ids` to scope a cohort.
 Empty / omitted = all stores.
 """
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Query
@@ -443,7 +444,12 @@ async def get_dashboard(stores: str | None = Query(default=None)):
     if not cohort:
         return _empty_dashboard()
 
-    a = await _query_a(pool, cohort)
+    a, b, c, d = await asyncio.gather(
+        _query_a(pool, cohort),
+        _query_b(pool, cohort),
+        _query_c(pool, cohort),
+        _query_d(pool, cohort),
+    )
 
     payload = _empty_dashboard()
     payload["cohort"] = {"store_count": len(cohort), "store_ids": cohort}
@@ -487,13 +493,11 @@ async def get_dashboard(stores: str | None = Query(default=None)):
     # Loyalty — only the order pct from Query A; rest filled by later tasks
     payload["loyalty"]["loyalty_order_pct"] = float(a.get("loyalty_order_pct") or 0.0)
 
-    b = await _query_b(pool, cohort)
     payload["customers"] = b
 
-    c = await _query_c(pool, cohort)
     payload["loyalty"]["points_earned_today"] = c["points_earned_today"]
     payload["loyalty"]["avg_coupon_propensity"] = c["avg_coupon_propensity"]
 
-    payload["leaderboard"] = await _query_d(pool, cohort)
+    payload["leaderboard"] = d
 
     return payload
