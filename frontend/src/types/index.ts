@@ -161,3 +161,63 @@ export const STAGE_COLORS: Record<PipelineStage, string> = {
   "In Transit": "#E31837",
   Delivered: "#4CAF50",
 };
+
+// =============================================================================
+// Store Operations (Phase 1)
+// =============================================================================
+
+export interface PersonaBreakdown {
+  name: string;
+  pct: number;
+}
+
+export interface StoreLeaderboardRow {
+  location_id: string;
+  location_code: string;
+  name: string;
+  active_orders: number;
+  drivers_out: number;
+  revenue_today: number;
+  avg_delivery_min: number | null;
+  in_kitchen: number;
+  sla_status: "green" | "yellow" | "red";
+}
+
+export interface OperationsDashboard {
+  cohort: {
+    store_count: number;
+    store_ids: string[];
+  };
+  headline: {
+    revenue_today: number;
+    orders_active: number;
+    drivers_out: number;
+    kitchens_busy: { n: number; of: number };
+    avg_delivery_min: number | null;
+    sla_health_pct: number;
+  };
+  pipeline: {
+    new: number;
+    kitchen: number;
+    ready: number;
+    transit: number;
+    delivered_today: number;
+  };
+  kitchen: {
+    in_kitchen: number;
+    ready_waiting: number;
+    backlogged_stores: number;
+    avg_kitchen_min: number | null;
+  };
+  customers: {
+    unique_today: number;
+    avg_order_value: number;
+    top_personas: PersonaBreakdown[];
+  };
+  loyalty: {
+    loyalty_order_pct: number;
+    points_earned_today: number;
+    avg_coupon_propensity: number;
+  };
+  leaderboard: StoreLeaderboardRow[];
+}
