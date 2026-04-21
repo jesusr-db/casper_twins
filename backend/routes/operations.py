@@ -348,6 +348,91 @@ async def _query_c(pool, cohort: list[str]) -> dict:
     }
 
 
+_QUERY_D = f"""
+WITH sim_now AS (
+    SELECT MAX(ts)::timestamp AS now_ts FROM lakeflow.all_events_synced
+),
+window_orders AS (
+    SELECT oe.*
+    FROM lakeflow.orders_enriched_synced oe, sim_now
+    WHERE oe.location_id = ANY($1::text[])
+      AND oe.created_at::timestamp >= sim_now.now_ts - INTERVAL '24 hours'
+),
+per_store AS (
+    SELECT
+        wo.location_id,
+        COUNT(*) FILTER (WHERE delivered_at IS NULL) AS active_orders,
+        COUNT(*) FILTER (
+            WHERE picked_up_at IS NOT NULL AND delivered_at IS NULL
+        ) AS drivers_out,
+        COALESCE(SUM(order_total) FILTER (
+            WHERE delivered_at IS NOT NULL
+              AND delivered_at::date = sim_now.now_ts::date
+        ), 0.0) AS revenue_today,
+        ROUND(CAST(EXTRACT(EPOCH FROM AVG(
+            delivered_at::timestamp - picked_up_at::timestamp
+        ) FILTER (
+            WHERE delivered_at IS NOT NULL AND picked_up_at IS NOT NULL
+              AND delivered_at > picked_up_at
+              AND delivered_at::date = sim_now.now_ts::date
+        )) / 60.0 AS numeric), 1) AS avg_delivery_min,
+        COUNT(*) FILTER (
+            WHERE kitchen_started_at IS NOT NULL AND kitchen_finished_at IS NULL
+        ) AS in_kitchen,
+        COUNT(*) FILTER (
+            WHERE delivered_at IS NULL AND {_sla_case_expr("red")}
+        ) AS sla_red_count,
+        COUNT(*) FILTER (
+            WHERE delivered_at IS NULL AND {_sla_case_expr("yellow")}
+              AND NOT {_sla_case_expr("red")}
+        ) AS sla_yellow_count
+    FROM window_orders wo, sim_now
+    GROUP BY wo.location_id
+)
+SELECT
+    m.location_id::text AS location_id,
+    m.location_code,
+    m.name,
+    COALESCE(ps.active_orders, 0) AS active_orders,
+    COALESCE(ps.drivers_out, 0) AS drivers_out,
+    COALESCE(ps.revenue_today, 0.0) AS revenue_today,
+    ps.avg_delivery_min,
+    COALESCE(ps.in_kitchen, 0) AS in_kitchen,
+    COALESCE(ps.sla_red_count, 0) AS sla_red_count,
+    COALESCE(ps.sla_yellow_count, 0) AS sla_yellow_count
+FROM simulator.locations_synced m
+LEFT JOIN per_store ps ON ps.location_id = m.location_id::text
+WHERE m.location_id::text = ANY($1::text[])
+ORDER BY active_orders DESC, m.location_id
+"""
+
+
+def _roll_up_sla(red: int, yellow: int) -> str:
+    if red > 0:
+        return "red"
+    if yellow > 0:
+        return "yellow"
+    return "green"
+
+
+async def _query_d(pool, cohort: list[str]) -> list[dict]:
+    rows = await pool.fetch(_QUERY_D, cohort)
+    out = []
+    for r in rows:
+        d = dict(r)
+        sla_status = _roll_up_sla(
+            int(d.pop("sla_red_count", 0) or 0),
+            int(d.pop("sla_yellow_count", 0) or 0),
+        )
+        d["sla_status"] = sla_status
+        # Ensure numeric types for JSON
+        d["revenue_today"] = float(d["revenue_today"] or 0.0)
+        if d.get("avg_delivery_min") is not None:
+            d["avg_delivery_min"] = float(d["avg_delivery_min"])
+        out.append(d)
+    return out
+
+
 @router.get("/operations/dashboard")
 async def get_dashboard(stores: str | None = Query(default=None)):
     """Composite operations dashboard — atomic snapshot across a cohort."""
@@ -408,5 +493,7 @@ async def get_dashboard(stores: str | None = Query(default=None)):
     c = await _query_c(pool, cohort)
     payload["loyalty"]["points_earned_today"] = c["points_earned_today"]
     payload["loyalty"]["avg_coupon_propensity"] = c["avg_coupon_propensity"]
+
+    payload["leaderboard"] = await _query_d(pool, cohort)
 
     return payload

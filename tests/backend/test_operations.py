@@ -170,3 +170,52 @@ def test_query_c_populates_loyalty_points_and_propensity(client, mock_pool):
     body = resp.json()
     assert body["loyalty"]["points_earned_today"] == 8240
     assert body["loyalty"]["avg_coupon_propensity"] == 0.58
+
+
+def test_query_d_populates_leaderboard(client, mock_pool):
+    """Query D fills leaderboard with one row per store, default sort active_orders DESC."""
+    from tests.backend.conftest import sql_dispatch
+
+    mock_pool.fetch.side_effect = sql_dispatch({
+        "FROM simulator.locations_synced ORDER BY location_id": [
+            {"location_id": 1}, {"location_id": 2},
+        ],
+        # Query D — per-store rows (matched by the per_store CTE name)
+        "per_store AS": [
+            {
+                "location_id": "1",
+                "location_code": "sf-mission",
+                "name": "SF — Mission St",
+                "active_orders": 12,
+                "drivers_out": 7,
+                "revenue_today": 820.00,
+                "avg_delivery_min": 22.0,
+                "in_kitchen": 4,
+                "sla_red_count": 0,
+                "sla_yellow_count": 0,
+            },
+            {
+                "location_id": "2",
+                "location_code": "sf-castro",
+                "name": "SF — Castro",
+                "active_orders": 9,
+                "drivers_out": 4,
+                "revenue_today": 640.00,
+                "avg_delivery_min": 28.0,
+                "in_kitchen": 3,
+                "sla_red_count": 0,
+                "sla_yellow_count": 2,
+            },
+        ],
+    })
+    mock_pool.fetchrow.return_value = None
+
+    resp = client.get("/api/operations/dashboard")
+    body = resp.json()
+    lb = body["leaderboard"]
+    assert len(lb) == 2
+    assert lb[0]["location_id"] == "1"
+    assert lb[0]["sla_status"] == "green"
+    assert lb[0]["active_orders"] == 12
+    assert lb[1]["sla_status"] == "yellow"  # has yellow, no red
+    assert "sla_red_count" not in lb[0]  # internal fields stripped
