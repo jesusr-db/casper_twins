@@ -117,3 +117,35 @@ def test_query_a_populates_headline_pipeline_kitchen(client, mock_pool):
         "backlogged_stores": 4, "avg_kitchen_min": 6.2,
     }
     assert body["loyalty"]["loyalty_order_pct"] == 64.0
+
+
+def test_query_b_populates_customers_section(client, mock_pool):
+    """Query B fills customers.unique_today, avg_order_value, top_personas."""
+    from tests.backend.conftest import sql_dispatch
+
+    mock_pool.fetch.side_effect = sql_dispatch({
+        "simulator.locations_synced ORDER BY location_id": [
+            {"location_id": 1}, {"location_id": 2}, {"location_id": 3},
+        ],
+        # Query B aggregate — the unique_today column alias is unique to this query
+        "unique_today": [
+            {"unique_today": 312, "avg_order_value": 39.90},
+        ],
+        # Query B personas — ORDER BY n DESC LIMIT 3 is unique to this query
+        "ORDER BY n DESC": [
+            {"persona": "Family Night", "pct": 28.0},
+            {"persona": "Late Crew",    "pct": 19.0},
+            {"persona": "Solo Snacker", "pct": 14.0},
+        ],
+    })
+    mock_pool.fetchrow.return_value = None  # Query A returns None — headline stays zero
+
+    resp = client.get("/api/operations/dashboard")
+    body = resp.json()
+    assert body["customers"]["unique_today"] == 312
+    assert body["customers"]["avg_order_value"] == 39.90
+    assert body["customers"]["top_personas"] == [
+        {"name": "Family Night", "pct": 28.0},
+        {"name": "Late Crew",    "pct": 19.0},
+        {"name": "Solo Snacker", "pct": 14.0},
+    ]

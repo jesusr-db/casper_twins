@@ -233,6 +233,77 @@ async def _query_a(pool, cohort: list[str]) -> dict:
     return dict(row)
 
 
+_QUERY_B_AGG = """
+WITH sim_now AS (
+    SELECT MAX(ts)::timestamp AS now_ts FROM lakeflow.all_events_synced
+),
+today_orders AS (
+    SELECT oe.*
+    FROM lakeflow.orders_enriched_synced oe, sim_now
+    WHERE oe.location_id = ANY($1::text[])
+      AND oe.created_at::date = sim_now.now_ts::date
+),
+matched AS (
+    SELECT t.*, c.customer_id, c.persona
+    FROM today_orders t
+    LEFT JOIN simulator.customer_address_index_synced cai
+        ON ROUND((t.order_body::json->>'customer_lat')::numeric, 3)
+            = cai.rounded_lat
+       AND ROUND((t.order_body::json->>'customer_lon')::numeric, 3)
+            = cai.rounded_lon
+    LEFT JOIN simulator.customers_synced c
+        ON c.customer_id = cai.customer_id
+)
+SELECT
+    COUNT(DISTINCT customer_id) FILTER (WHERE customer_id IS NOT NULL)
+        AS unique_today,
+    ROUND(CAST(AVG(order_total) AS numeric), 2) AS avg_order_value
+FROM matched
+"""
+
+
+_QUERY_B_PERSONAS = """
+WITH sim_now AS (
+    SELECT MAX(ts)::timestamp AS now_ts FROM lakeflow.all_events_synced
+),
+today_matched AS (
+    SELECT c.persona
+    FROM lakeflow.orders_enriched_synced oe, sim_now
+    LEFT JOIN simulator.customer_address_index_synced cai
+        ON ROUND((oe.order_body::json->>'customer_lat')::numeric, 3)
+            = cai.rounded_lat
+       AND ROUND((oe.order_body::json->>'customer_lon')::numeric, 3)
+            = cai.rounded_lon
+    LEFT JOIN simulator.customers_synced c
+        ON c.customer_id = cai.customer_id
+    WHERE oe.location_id = ANY($1::text[])
+      AND oe.created_at::date = sim_now.now_ts::date
+      AND c.persona IS NOT NULL
+),
+counts AS (
+    SELECT persona, COUNT(*) AS n FROM today_matched GROUP BY persona
+),
+total AS (SELECT SUM(n) AS total FROM counts)
+SELECT persona, ROUND(CAST(100.0 * n / NULLIF(total, 0) AS numeric), 1) AS pct
+FROM counts, total
+ORDER BY n DESC
+LIMIT 3
+"""
+
+
+async def _query_b(pool, cohort: list[str]) -> dict:
+    agg_rows = await pool.fetch(_QUERY_B_AGG, cohort)
+    personas = await pool.fetch(_QUERY_B_PERSONAS, cohort)
+    agg = dict(agg_rows[0]) if agg_rows else {}
+    return {
+        "unique_today": int(agg.get("unique_today") or 0),
+        "avg_order_value": float(agg.get("avg_order_value") or 0.0),
+        "top_personas": [
+            {"name": p["persona"], "pct": float(p["pct"])} for p in personas
+        ],
+    }
+
+
 @router.get("/operations/dashboard")
 async def get_dashboard(stores: str | None = Query(default=None)):
     """Composite operations dashboard — atomic snapshot across a cohort."""
@@ -286,5 +357,8 @@ async def get_dashboard(stores: str | None = Query(default=None)):
 
     # Loyalty — only the order pct from Query A; rest filled by later tasks
     payload["loyalty"]["loyalty_order_pct"] = float(a.get("loyalty_order_pct") or 0.0)
+
+    b = await _query_b(pool, cohort)
+    payload["customers"] = b
 
     return payload
