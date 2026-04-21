@@ -269,7 +269,8 @@ WITH sim_now AS (
 ),
 today_matched AS (
     SELECT c.persona
-    FROM lakeflow.orders_enriched_synced oe, sim_now
+    FROM lakeflow.orders_enriched_synced oe
+    CROSS JOIN sim_now
     LEFT JOIN simulator.customer_address_index_synced cai
         ON ROUND((oe.order_body::json->>'customer_lat')::numeric, 3)
             = cai.rounded_lat
@@ -313,7 +314,8 @@ WITH sim_now AS (
 ),
 today_matched AS (
     SELECT oe.order_total, c.is_loyalty_member, c.coupon_propensity
-    FROM lakeflow.orders_enriched_synced oe, sim_now
+    FROM lakeflow.orders_enriched_synced oe
+    CROSS JOIN sim_now
     LEFT JOIN simulator.customer_address_index_synced cai
         ON ROUND((oe.order_body::json->>'customer_lat')::numeric, 3)
             = cai.rounded_lat
