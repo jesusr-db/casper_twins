@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.db import close_pool, init_pool
-from backend.routes import drivers, markets, orders, playback
+from backend.routes import drivers, markets, operations, orders, playback
 
 logging.basicConfig(
     level=logging.INFO,
@@ -80,6 +80,7 @@ app.include_router(markets.router)
 app.include_router(orders.router)
 app.include_router(drivers.router)
 app.include_router(playback.router)
+app.include_router(operations.router)
 
 
 # Health check
