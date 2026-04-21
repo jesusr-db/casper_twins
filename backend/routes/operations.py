@@ -304,6 +304,50 @@ async def _query_b(pool, cohort: list[str]) -> dict:
     }
 
 
+# points_earned_today is a v1 synthetic: FLOOR(order_total) for loyalty members.
+# Revise when real loyalty accrual rules land.
+_QUERY_C = """
+WITH sim_now AS (
+    SELECT MAX(ts)::timestamp AS now_ts FROM lakeflow.all_events_synced
+),
+today_matched AS (
+    SELECT oe.order_total, c.is_loyalty_member, c.coupon_propensity
+    FROM lakeflow.orders_enriched_synced oe, sim_now
+    LEFT JOIN simulator.customer_address_index_synced cai
+        ON ROUND((oe.order_body::json->>'customer_lat')::numeric, 3)
+            = cai.rounded_lat
+       AND ROUND((oe.order_body::json->>'customer_lon')::numeric, 3)
+            = cai.rounded_lon
+    LEFT JOIN simulator.customers_synced c
+        ON c.customer_id = cai.customer_id
+    WHERE oe.location_id = ANY($1::text[])
+      AND oe.created_at::date = sim_now.now_ts::date
+)
+SELECT
+    COALESCE(SUM(
+        CASE WHEN is_loyalty_member THEN FLOOR(order_total)::bigint ELSE 0 END
+    ), 0) AS points_earned_today,
+    ROUND(CAST(AVG(
+        CASE coupon_propensity
+            WHEN 'always'    THEN 1.0
+            WHEN 'sometimes' THEN 0.5
+            WHEN 'never'     THEN 0.0
+            ELSE NULL
+        END
+    ) AS numeric), 2) AS avg_coupon_propensity
+FROM today_matched
+"""
+
+
+async def _query_c(pool, cohort: list[str]) -> dict:
+    rows = await pool.fetch(_QUERY_C, cohort)
+    row = dict(rows[0]) if rows else {}
+    return {
+        "points_earned_today": int(row.get("points_earned_today") or 0),
+        "avg_coupon_propensity": float(row.get("avg_coupon_propensity") or 0.0),
+    }
+
+
 @router.get("/operations/dashboard")
 async def get_dashboard(stores: str | None = Query(default=None)):
     """Composite operations dashboard — atomic snapshot across a cohort."""
@@ -360,5 +404,9 @@ async def get_dashboard(stores: str | None = Query(default=None)):
 
     b = await _query_b(pool, cohort)
     payload["customers"] = b
+
+    c = await _query_c(pool, cohort)
+    payload["loyalty"]["points_earned_today"] = c["points_earned_today"]
+    payload["loyalty"]["avg_coupon_propensity"] = c["avg_coupon_propensity"]
 
     return payload

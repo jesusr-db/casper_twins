@@ -149,3 +149,24 @@ def test_query_b_populates_customers_section(client, mock_pool):
         {"name": "Late Crew",    "pct": 19.0},
         {"name": "Solo Snacker", "pct": 14.0},
     ]
+
+
+def test_query_c_populates_loyalty_points_and_propensity(client, mock_pool):
+    """Query C fills loyalty.points_earned_today and avg_coupon_propensity."""
+    from tests.backend.conftest import sql_dispatch
+
+    mock_pool.fetch.side_effect = sql_dispatch({
+        "simulator.locations_synced ORDER BY location_id": [
+            {"location_id": 1}, {"location_id": 2}, {"location_id": 3},
+        ],
+        # Query C — matched by the unique identifier in the SELECT clause
+        "points_earned_today": [
+            {"points_earned_today": 8240, "avg_coupon_propensity": 0.58},
+        ],
+    })
+    mock_pool.fetchrow.return_value = None  # Query A
+
+    resp = client.get("/api/operations/dashboard")
+    body = resp.json()
+    assert body["loyalty"]["points_earned_today"] == 8240
+    assert body["loyalty"]["avg_coupon_propensity"] == 0.58
