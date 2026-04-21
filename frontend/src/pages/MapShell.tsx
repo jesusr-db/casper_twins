@@ -488,5 +488,4 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-export default App;
 export { App as MapShell };
