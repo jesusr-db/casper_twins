@@ -12,7 +12,7 @@ import logging
 
 from fastapi import APIRouter, Query
 
-from backend.db import get_pool
+from backend import db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["operations"])
@@ -64,15 +64,30 @@ def _empty_dashboard() -> dict:
     }
 
 
+async def _resolve_cohort(pool, store_ids: list[str]) -> list[str]:
+    """Return the effective list of location_ids (as strings) to aggregate over.
+
+    If store_ids is non-empty, use it verbatim. Otherwise query the catalog.
+    """
+    if store_ids:
+        return store_ids
+    rows = await pool.fetch(
+        "SELECT location_id FROM simulator.locations_synced ORDER BY location_id"
+    )
+    return [str(r["location_id"]) for r in rows]
+
+
 @router.get("/operations/dashboard")
 async def get_dashboard(stores: str | None = Query(default=None)):
-    """Composite operations dashboard — atomic snapshot across a cohort.
+    """Composite operations dashboard — atomic snapshot across a cohort."""
+    requested = _parse_store_ids(stores)
+    pool = await db.get_pool()
+    cohort = await _resolve_cohort(pool, requested)
 
-    `stores` — optional comma-separated list of `location_id` values. Empty
-    or omitted = all stores in the catalog.
-    """
-    store_ids = _parse_store_ids(stores)
-    pool = await get_pool()  # noqa: F841  unused until Task 4
+    if not cohort:
+        return _empty_dashboard()
 
-    # Skeleton: always return the empty payload. Real queries land in later tasks.
-    return _empty_dashboard()
+    payload = _empty_dashboard()
+    payload["cohort"] = {"store_count": len(cohort), "store_ids": cohort}
+    payload["headline"]["kitchens_busy"]["of"] = len(cohort)
+    return payload
