@@ -64,3 +64,56 @@ def test_dashboard_resolves_filtered_cohort(client, mock_pool):
     body = resp.json()
     assert body["cohort"]["store_count"] == 2
     assert body["cohort"]["store_ids"] == ["1", "3"]
+
+
+def test_query_a_populates_headline_pipeline_kitchen(client, mock_pool):
+    """Query A aggregates fill headline + pipeline + kitchen + loyalty_order_pct."""
+    from tests.backend.conftest import sql_dispatch
+
+    mock_pool.fetch.side_effect = sql_dispatch({
+        "simulator.locations_synced ORDER BY location_id": [
+            {"location_id": 1}, {"location_id": 2}, {"location_id": 3},
+        ],
+    })
+    # Query A uses fetchrow.
+    mock_pool.fetchrow.return_value = {
+        "revenue_today": 12480.0,
+        "orders_active": 147,
+        "drivers_out": 89,
+        "kitchens_busy_n": 2,
+        "avg_delivery_min": 24.0,
+        "sla_active_count": 100,
+        "sla_red_count": 6,
+        "pipeline_new": 34,
+        "pipeline_kitchen": 58,
+        "pipeline_ready": 22,
+        "pipeline_transit": 89,
+        "pipeline_delivered_today": 312,
+        "kitchen_in_kitchen": 58,
+        "kitchen_ready_waiting": 22,
+        "kitchen_backlogged_stores": 4,
+        "kitchen_avg_min": 6.2,
+        "loyalty_order_pct": 64.0,
+    }
+
+    resp = client.get("/api/operations/dashboard")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["headline"]["revenue_today"] == 12480.0
+    assert body["headline"]["orders_active"] == 147
+    assert body["headline"]["drivers_out"] == 89
+    assert body["headline"]["kitchens_busy"] == {"n": 2, "of": 3}
+    assert body["headline"]["avg_delivery_min"] == 24.0
+    # sla_health_pct = (100 - 6) / 100 * 100 = 94.0
+    assert body["headline"]["sla_health_pct"] == 94.0
+
+    assert body["pipeline"] == {
+        "new": 34, "kitchen": 58, "ready": 22,
+        "transit": 89, "delivered_today": 312,
+    }
+    assert body["kitchen"] == {
+        "in_kitchen": 58, "ready_waiting": 22,
+        "backlogged_stores": 4, "avg_kitchen_min": 6.2,
+    }
+    assert body["loyalty"]["loyalty_order_pct"] == 64.0
