@@ -275,11 +275,8 @@ const App: React.FC = () => {
 
   return (
     <div className="app-root">
-      {/* Top Bar */}
       <div className="top-bar">
         <div className="logo-area">
-          <div className="app-logo">D</div>
-          <span className="app-title">Delivery Digital Twin</span>
           {mode === "playback" && (
             <span className="playback-badge-indicator">PLAYBACK</span>
           )}
