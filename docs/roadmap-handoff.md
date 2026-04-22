@@ -111,8 +111,11 @@ Combined with the self-heal logic already in `create_syncs.py` (added 2026-04-16
 ### Operations & Delivery
 - Alerting / push notifications for SLA breaches
 - Multi-market overview (all-markets zoomed-out map)
-- Predictive ETA (ML model integration)
 - Real store locations (Google Places API)
+
+### ML — Feature Store + Predictive ETA
+- **Customer feature store** — build a Unity Catalog Feature Store table from `test.json` (per-customer features: order frequency, avg basket size, time-of-day affinity, persona, loyalty tier, coupon response history, store affinity). Source: `test.json` → offline feature table (`simulator.customer_features`) → online feature store for low-latency serving. Use as input to the ETA model and to any future personalization workloads.
+- **Predictive ETA — model inference for expected delivery time** — train a model on historical `orders_enriched` + driver-ping trajectories + customer features + store load; predicts `expected_delivery_at` (or minutes-remaining) at each event boundary (`order_created`, `gk_finished`, `driver_picked_up`). Served via a Databricks Model Serving endpoint, queried from the FastAPI backend per-order. Expose the prediction in `OrderDrawer` and as a per-store aggregate on the Operations dashboard. Track prediction-vs-actual drift with a monitor.
 
 ### Synthetic Customer Dataset ✅ Complete 2026-03-19
 103K customers generated from order history — personas, loyalty, coupon propensity, store affinity. Synced to Lakebase (`customers_synced`, `customer_address_index_synced`). Customer card shown in Order Drawer.
