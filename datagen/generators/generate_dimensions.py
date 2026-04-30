@@ -375,7 +375,7 @@ SF_STORE_JITTER_DEG = 0.0015
 
 
 def generate_locations():
-    """Generate ~88 Domino's locations across 4 cities (22 per city).
+    """Generate 220 Domino's locations across 10 cities (22 per city).
 
     Schema: location_id, location_code, name, address, lat, lon,
             narrative, base_orders_day, growth_rate_daily
@@ -567,7 +567,7 @@ if __name__ == "__main__":
     LOCATION_PRESET = os.environ.get("LOCATION_PRESET", "sf")
     locations = locations[locations["location_code"] == LOCATION_PRESET].reset_index(drop=True)
     locations.to_parquet(f"{out}/locations.parquet", index=False)
-    print(f"locations.parquet: {len(locations)} rows (SF only)")
+    print(f"locations.parquet: {len(locations)} rows (preset={LOCATION_PRESET})")
     print(f"  Cities: {locations['location_code'].value_counts().to_dict()}")
     print(f"  Avg base_orders_day: {locations['base_orders_day'].mean():.1f}")
 
@@ -591,4 +591,4 @@ if __name__ == "__main__":
     items.to_parquet(f"{out}/items.parquet", index=False)
     print(f"items.parquet: {len(items)} rows")
 
-    print(f"\nDone. {len(locations)} locations across {len(CITIES)} cities.")
+    print(f"\nDone. {len(locations)} locations for preset '{LOCATION_PRESET}' (1 of {len(CITIES)} available).")
