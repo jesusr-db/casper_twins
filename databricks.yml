@@ -212,6 +212,13 @@ resources:
         the watermark + events volume can race).
       tags:
         app: twins
+      parameters:
+        - name: location_preset
+          default: sf
+          # Available presets:
+          #   US cities (USD $):   sf, sv, bellevue, chicago
+          #   International:       london (GBP £), tokyo (JPY ¥), berlin (EUR €),
+          #                        toronto (CAD C$), sydney (AUD A$), sao_paulo (BRL R$)
       max_concurrent_runs: 1
       schedule:
         quartz_cron_expression: "0 0/3 * * * ?"
@@ -228,6 +235,7 @@ resources:
               SCHEDULE_MINUTES: "3"
               SPEED_MULTIPLIER: "60.0"
               START_DAY: "70"
+              LOCATION_PRESET: "{{job.parameters.location_preset}}"
       run_as:
         user_name: jesus.rodriguez@databricks.com
       permissions:
