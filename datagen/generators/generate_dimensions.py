@@ -11,6 +11,8 @@ Phase 1 scope: San Francisco locations only (22 rows).
 Run from the data/canonical/ directory; writes into `canonical_dataset/`.
 """
 
+import os
+
 import numpy as np
 import pandas as pd
 
@@ -26,6 +28,9 @@ CITIES = [
         "code": "sf",
         "city": "San Francisco",
         "state": "CA",
+        "country": "US",
+        "currency_code": "USD",
+        "currency_symbol": "$",
         "center_lat": 37.7749,
         "center_lon": -122.4194,
         "narrative": "growing",
@@ -54,6 +59,9 @@ CITIES = [
         "code": "sv",
         "city": "Silicon Valley",
         "state": "CA",
+        "country": "US",
+        "currency_code": "USD",
+        "currency_symbol": "$",
         "center_lat": 37.3861,
         "center_lon": -122.0839,
         "narrative": "growing_fast",
@@ -83,6 +91,9 @@ CITIES = [
         "code": "bellevue",
         "city": "Seattle",
         "state": "WA",
+        "country": "US",
+        "currency_code": "USD",
+        "currency_symbol": "$",
         "center_lat": 47.6062,
         "center_lon": -122.3321,
         "narrative": "stagnant",
@@ -111,6 +122,9 @@ CITIES = [
         "code": "chicago",
         "city": "Chicago",
         "state": "IL",
+        "country": "US",
+        "currency_code": "USD",
+        "currency_symbol": "$",
         "center_lat": 41.8781,
         "center_lon": -87.6298,
         "narrative": "declining",
@@ -133,6 +147,193 @@ CITIES = [
             "Lincoln Ave", "Broadway", "Sheridan Rd", "Lake Shore Dr", "Michigan Ave",
             "State St", "Wabash Ave", "Wells St", "Clybourn Ave", "Armitage Ave",
             "Irving Park Rd", "Montrose Ave",
+        ],
+    },
+    # --- International presets ---
+    {
+        "code": "london",
+        "city": "London",
+        "state": "England",
+        "country": "GB",
+        "currency_code": "GBP",
+        "currency_symbol": "£",
+        "center_lat": 51.5074,
+        "center_lon": -0.1278,
+        "narrative": "growing",
+        "base_orders_mean": 26,
+        "base_orders_std": 4,
+        "growth_rate_daily_mean": 0.0018,
+        "growth_rate_daily_std": 0.0007,
+        "trajectory": "growing",
+        "growth_rate_monthly_mean": 0.05,
+        "neighborhoods": [
+            "Soho", "Shoreditch", "Brixton", "Camden", "Hackney",
+            "Notting Hill", "Islington", "Canary Wharf", "Bermondsey", "Peckham",
+            "Dalston", "Clapham", "Battersea", "Kensington", "Chelsea",
+            "Fulham", "Greenwich", "Lewisham", "Stratford", "Bethnal Green",
+            "Whitechapel", "Finsbury Park",
+        ],
+        "streets": [
+            "Oxford St", "Baker St", "King's Rd", "Portobello Rd", "Broadway Market",
+            "Brick Lane", "Columbia Rd", "Upper St", "Bethnal Green Rd", "Roman Rd",
+            "Kingsland Rd", "Mare St", "Stoke Newington High St", "Holloway Rd", "Caledonian Rd",
+            "Stroud Green Rd", "Finchley Rd", "Edgware Rd", "Harrow Rd", "Ladbroke Grove",
+            "Golborne Rd", "Uxbridge Rd",
+        ],
+    },
+    {
+        "code": "tokyo",
+        "city": "Tokyo",
+        "state": "Tokyo",
+        "country": "JP",
+        "currency_code": "JPY",
+        "currency_symbol": "¥",
+        "center_lat": 35.6762,
+        "center_lon": 139.6503,
+        "narrative": "stagnant",
+        "base_orders_mean": 24,
+        "base_orders_std": 4,
+        "growth_rate_daily_mean": 0.0002,
+        "growth_rate_daily_std": 0.0005,
+        "trajectory": "flat",
+        "growth_rate_monthly_mean": 0.01,
+        "neighborhoods": [
+            "Shibuya", "Shinjuku", "Harajuku", "Akihabara", "Asakusa",
+            "Ueno", "Ginza", "Roppongi", "Ebisu", "Daikanyama",
+            "Nakameguro", "Shimokitazawa", "Koenji", "Kichijoji", "Ikebukuro",
+            "Sugamo", "Yanaka", "Nezu", "Sendagi", "Nishi-Ogikubo",
+            "Kagurazaka", "Yushima",
+        ],
+        "streets": [
+            "Takeshita Dori", "Omotesando", "Meiji Dori", "Yamate Dori", "Kannana Dori",
+            "Kokudo 20 Go", "Showa Dori", "Chuo Dori", "Yasukuni Dori", "Mejiro Dori",
+            "Kuramaebashi Dori", "Kokusai Dori", "Edo Dori", "Kasuga Dori", "Iidabashi Dori",
+            "Waseda Dori", "Kagurazaka Dori", "Itabashi Dori", "Hakusan Dori", "Sotobori Dori",
+            "Hibiya Dori", "Harumi Dori",
+        ],
+    },
+    {
+        "code": "berlin",
+        "city": "Berlin",
+        "state": "Berlin",
+        "country": "DE",
+        "currency_code": "EUR",
+        "currency_symbol": "€",
+        "center_lat": 52.5200,
+        "center_lon": 13.4050,
+        "narrative": "growing",
+        "base_orders_mean": 23,
+        "base_orders_std": 4,
+        "growth_rate_daily_mean": 0.0015,
+        "growth_rate_daily_std": 0.0007,
+        "trajectory": "growing",
+        "growth_rate_monthly_mean": 0.04,
+        "neighborhoods": [
+            "Mitte", "Prenzlauer Berg", "Friedrichshain", "Kreuzberg", "Schöneberg",
+            "Charlottenburg", "Neukölln", "Tempelhof", "Wedding", "Spandau",
+            "Pankow", "Weißensee", "Lichtenberg", "Treptow", "Köpenick",
+            "Reinickendorf", "Steglitz", "Zehlendorf", "Wilmersdorf", "Tiergarten",
+            "Moabit", "Gesundbrunnen",
+        ],
+        "streets": [
+            "Unter den Linden", "Kurfürstendamm", "Karl-Marx-Allee", "Friedrichstraße", "Torstraße",
+            "Kastanienallee", "Boxhagener Str", "Sonnenallee", "Hermannstraße", "Hasenheide",
+            "Bergmannstraße", "Gneisenaustraße", "Yorckstraße", "Potsdamer Str", "Tauentzienstraße",
+            "Kantstraße", "Bleibtreustraße", "Savignyplatz", "Pestalozzistraße", "Windscheidstraße",
+            "Nollendorfplatz", "Goltzstraße",
+        ],
+    },
+    {
+        "code": "toronto",
+        "city": "Toronto",
+        "state": "ON",
+        "country": "CA",
+        "currency_code": "CAD",
+        "currency_symbol": "C$",
+        "center_lat": 43.6532,
+        "center_lon": -79.3832,
+        "narrative": "growing",
+        "base_orders_mean": 25,
+        "base_orders_std": 4,
+        "growth_rate_daily_mean": 0.0016,
+        "growth_rate_daily_std": 0.0007,
+        "trajectory": "growing",
+        "growth_rate_monthly_mean": 0.05,
+        "neighborhoods": [
+            "Kensington Market", "Distillery District", "Annex", "Yorkville", "Roncesvalles",
+            "Little Portugal", "Leslieville", "Riverdale", "Danforth", "East York",
+            "Scarborough", "Etobicoke", "North York", "Midtown", "Cabbagetown",
+            "St Lawrence", "Financial District", "Liberty Village", "Junction", "Bloor West",
+            "Forest Hill", "Lawrence Park",
+        ],
+        "streets": [
+            "Yonge St", "Bloor St W", "College St", "Dundas St W", "Queen St W",
+            "King St W", "Spadina Ave", "Bathurst St", "Dufferin St", "Ossington Ave",
+            "Roncesvalles Ave", "Harbord St", "St Clair Ave W", "Eglinton Ave W", "Lawrence Ave W",
+            "Sheppard Ave W", "Steeles Ave W", "Jane St", "Kipling Ave", "Weston Rd",
+            "Rogers Rd", "St Clair Ave E",
+        ],
+    },
+    {
+        "code": "sydney",
+        "city": "Sydney",
+        "state": "NSW",
+        "country": "AU",
+        "currency_code": "AUD",
+        "currency_symbol": "A$",
+        "center_lat": -33.8688,
+        "center_lon": 151.2093,
+        "narrative": "growing",
+        "base_orders_mean": 24,
+        "base_orders_std": 4,
+        "growth_rate_daily_mean": 0.0014,
+        "growth_rate_daily_std": 0.0006,
+        "trajectory": "growing",
+        "growth_rate_monthly_mean": 0.04,
+        "neighborhoods": [
+            "Surry Hills", "Newtown", "Glebe", "Balmain", "Leichhardt",
+            "Pyrmont", "Ultimo", "Chippendale", "Redfern", "Erskineville",
+            "Alexandria", "Waterloo", "Zetland", "Mascot", "Eastlakes",
+            "Paddington", "Woollahra", "Bondi", "Coogee", "Randwick",
+            "Manly", "Mosman",
+        ],
+        "streets": [
+            "Crown St", "King St", "Enmore Rd", "Wilson St", "Darling St",
+            "Victoria Rd", "Pyrmont Bridge Rd", "Harris St", "George St", "Pitt St",
+            "Elizabeth St", "Oxford St", "Bourke St", "Cleveland St", "Botany Rd",
+            "O'Riordan St", "Gardeners Rd", "Anzac Parade", "Alison Rd", "Avoca St",
+            "Pittwater Rd", "Sydney Rd",
+        ],
+    },
+    {
+        "code": "sao_paulo",
+        "city": "São Paulo",
+        "state": "SP",
+        "country": "BR",
+        "currency_code": "BRL",
+        "currency_symbol": "R$",
+        "center_lat": -23.5505,
+        "center_lon": -46.6333,
+        "narrative": "growing_fast",
+        "base_orders_mean": 30,
+        "base_orders_std": 5,
+        "growth_rate_daily_mean": 0.0030,
+        "growth_rate_daily_std": 0.0010,
+        "trajectory": "growing",
+        "growth_rate_monthly_mean": 0.09,
+        "neighborhoods": [
+            "Jardins", "Vila Madalena", "Pinheiros", "Itaim Bibi", "Moema",
+            "Vila Mariana", "Bela Vista", "Consolação", "República", "Higienópolis",
+            "Perdizes", "Pompeia", "Lapa", "Barra Funda", "Santana",
+            "Tucuruvi", "Penha", "Tatuapé", "Vila Prudente", "Santo André",
+            "São Bernardo", "Osasco",
+        ],
+        "streets": [
+            "Av Paulista", "Rua Augusta", "Rua Oscar Freire", "Rua Fradique Coutinho", "Rua Aspicuelta",
+            "Av Rebouças", "Rua Teodoro Sampaio", "Av Brasil", "Rua Haddock Lobo", "Al Santos",
+            "Al Lorena", "Rua Bela Cintra", "Av Higienópolis", "Av Angélica", "R Piauí",
+            "R Minas Gerais", "Av Ipiranga", "R da Consolação", "Rua Xavier de Toledo", "R Sete de Abril",
+            "R Direita", "Largo do Arouche",
         ],
     },
 ]
@@ -230,6 +431,8 @@ def generate_locations():
                 "narrative": narrative,
                 "base_orders_day": int(base_orders[i]),
                 "growth_rate_daily": round(float(growth_rates[i]), 6),
+                "country": city["country"],
+                "currency_symbol": city["currency_symbol"],
             })
             loc_id += 1
 
@@ -357,10 +560,12 @@ if __name__ == "__main__":
     out = "canonical_dataset"
 
     locations = generate_locations()
-    # Phase 1 scope: San Francisco locations only (22 rows). Decision 8 in
-    # docs/superpowers/specs/2026-04-20-phase1-absorb-events-design.md.
-    # To restore the full 88-location dataset, remove this single filter line.
-    locations = locations[locations["location_code"] == "sf"].reset_index(drop=True)
+    # LOCATION_PRESET selects which city's 22 stores are generated.
+    # Set via env var (DAB job parameter → notebook widget → os.environ).
+    # Available presets: sf, sv, bellevue, chicago, london, tokyo, berlin,
+    #   toronto, sydney, sao_paulo
+    _preset = os.environ.get("LOCATION_PRESET", "sf")
+    locations = locations[locations["location_code"] == _preset].reset_index(drop=True)
     locations.to_parquet(f"{out}/locations.parquet", index=False)
     print(f"locations.parquet: {len(locations)} rows (SF only)")
     print(f"  Cities: {locations['location_code'].value_counts().to_dict()}")
