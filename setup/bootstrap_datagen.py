@@ -95,6 +95,8 @@ def upload_file(w: WorkspaceClient, local_path: Path, volume_path: str) -> None:
 
 
 def main() -> None:
+    location_preset = os.environ.get("LOCATION_PRESET", "sf")
+
     log.info("=" * 60)
     log.info("bootstrap_datagen — seed data generation")
     log.info("=" * 60)
@@ -129,6 +131,7 @@ def main() -> None:
             cwd=str(scratch_path),
             capture_output=True,
             text=True,
+            env={**os.environ, "LOCATION_PRESET": location_preset},
         )
         if result.returncode != 0:
             log.error("Generator failed (exit %d):", result.returncode)
