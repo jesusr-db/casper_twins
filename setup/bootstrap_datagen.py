@@ -95,7 +95,10 @@ def upload_file(w: WorkspaceClient, local_path: Path, volume_path: str) -> None:
 
 
 def main() -> None:
-    location_preset = os.environ.get("LOCATION_PRESET", "sf")
+    location_preset = (
+        sys.argv[2] if len(sys.argv) > 2 and sys.argv[2].strip()
+        else os.environ.get("LOCATION_PRESET", "sf")
+    )
 
     log.info("=" * 60)
     log.info("bootstrap_datagen — seed data generation")
