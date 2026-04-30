@@ -564,8 +564,8 @@ if __name__ == "__main__":
     # Set via env var (DAB job parameter → notebook widget → os.environ).
     # Available presets: sf, sv, bellevue, chicago, london, tokyo, berlin,
     #   toronto, sydney, sao_paulo
-    _preset = os.environ.get("LOCATION_PRESET", "sf")
-    locations = locations[locations["location_code"] == _preset].reset_index(drop=True)
+    LOCATION_PRESET = os.environ.get("LOCATION_PRESET", "sf")
+    locations = locations[locations["location_code"] == LOCATION_PRESET].reset_index(drop=True)
     locations.to_parquet(f"{out}/locations.parquet", index=False)
     print(f"locations.parquet: {len(locations)} rows (SF only)")
     print(f"  Cities: {locations['location_code'].value_counts().to_dict()}")

@@ -28,6 +28,11 @@ def test_generate_locations_has_currency_columns():
     assert "currency_symbol" in df.columns
 
 
+def test_generate_locations_excludes_currency_code():
+    df = generate_locations()
+    assert "currency_code" not in df.columns
+
+
 def test_sf_preset_produces_usd():
     """SF rows must have currency_symbol='$' and country='US'."""
     df = generate_locations()
