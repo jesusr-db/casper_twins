@@ -11,6 +11,7 @@ export interface Market {
   lon: number;
   active_orders: number;
   drivers_out: number;
+  currency_symbol: string;
 }
 
 /** City/region grouping for market tabs */

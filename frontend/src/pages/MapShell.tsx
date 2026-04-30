@@ -373,6 +373,7 @@ const App: React.FC = () => {
         isOpen={isDrawerOpen && rightRailMode === "order"}
         onClose={handleDrawerClose}
         onFollowDriver={handleFollowDriver}
+        currencySymbol={activeMarket?.currency_symbol ?? "$"}
       />
     </div>
   );

@@ -8,6 +8,7 @@ interface OrderDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onFollowDriver: (orderId: string) => void;
+  currencySymbol: string;
 }
 
 // Stage timeline steps in order
@@ -81,6 +82,7 @@ export const OrderDrawer: React.FC<OrderDrawerProps> = ({
   isOpen,
   onClose,
   onFollowDriver,
+  currencySymbol,
 }) => {
   // Handle Escape key
   useEffect(() => {
@@ -133,7 +135,7 @@ export const OrderDrawer: React.FC<OrderDrawerProps> = ({
             {order.order_id}
           </h2>
           <span className="drawer-order-price">
-            ${order.order_total.toFixed(2)}
+            {currencySymbol}{order.order_total.toFixed(2)}
           </span>
           <span className="drawer-order-time">
             {order.delivered_at ? `${getOrderDuration(order.created_at, order.delivered_at)} to deliver` : formatTime(order.created_at)}
@@ -198,7 +200,7 @@ export const OrderDrawer: React.FC<OrderDrawerProps> = ({
                   <td>{item.name}</td>
                   <td className="text-muted">{item.qty}</td>
                   <td style={{ textAlign: "right", fontWeight: 600 }}>
-                    ${(item.price * item.qty).toFixed(2)}
+                    {currencySymbol}{(item.price * item.qty).toFixed(2)}
                   </td>
                 </tr>
               ))}
@@ -206,7 +208,7 @@ export const OrderDrawer: React.FC<OrderDrawerProps> = ({
           </table>
           <div className="items-total-row">
             <span>Total</span>
-            <span>${order.order_total.toFixed(2)}</span>
+            <span>{currencySymbol}{order.order_total.toFixed(2)}</span>
           </div>
         </div>
 
