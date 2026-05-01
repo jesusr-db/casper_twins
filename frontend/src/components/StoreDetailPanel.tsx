@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Market, MarketKpis, Order, PipelineStage } from "../types";
 import { getOrderStage, STAGE_COLORS } from "../types";
 import { getSlaStatus, getMinutesInStage, STAGE_SLA_MINUTES } from "../constants/sla";
@@ -20,6 +21,11 @@ export const StoreDetailPanel: React.FC<StoreDetailPanelProps> = ({
   onClose,
   onStageClick,
 }) => {
+  const navigate = useNavigate();
+  const handleViewInOperations = () => {
+    navigate(`/operations?stores=${encodeURIComponent(String(market.location_id))}`);
+  };
+
   // Stage breakdown
   const stageCounts = useMemo(() => {
     return orders.reduce(
@@ -79,6 +85,13 @@ export const StoreDetailPanel: React.FC<StoreDetailPanelProps> = ({
             <span className="store-detail-live-pill">
               <span className="store-live-dot" /> Live
             </span>
+            <button
+              type="button"
+              className="store-detail-view-ops-btn"
+              onClick={handleViewInOperations}
+            >
+              View in Operations →
+            </button>
             <button className="store-detail-close" onClick={onClose} aria-label="Close store detail">
               ✕
             </button>
@@ -276,6 +289,23 @@ style.textContent = `
   .store-detail-close:hover {
     background: rgba(255, 255, 255, 0.1);
     color: var(--text-primary);
+  }
+
+  .store-detail-view-ops-btn {
+    background: transparent;
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    color: var(--text-primary);
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font-family);
+  }
+  .store-detail-view-ops-btn:hover {
+    background: var(--dpz-red);
+    border-color: var(--dpz-red);
+    color: white;
   }
 
   .store-detail-body {

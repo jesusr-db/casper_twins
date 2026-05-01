@@ -7,7 +7,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from backend.db import get_pool
+from backend import db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["markets"])
@@ -20,7 +20,7 @@ async def list_markets():
     Returns market metadata from the `markets` table with live counts
     computed from the `orders` table.
     """
-    pool = await get_pool()
+    pool = await db.get_pool()
 
     # Check if orders_current_state exists yet (it's created async by DLT pipeline)
     # information_schema.tables includes both tables and views (pg_tables is tables-only)
@@ -43,6 +43,7 @@ async def list_markets():
                 m.name,
                 m.lat,
                 m.lon,
+                m.currency_symbol,
                 COALESCE(orders.active_orders, 0) AS active_orders,
                 COALESCE(drivers.drivers_out, 0) AS drivers_out
             FROM simulator.locations_synced m
@@ -69,6 +70,7 @@ async def list_markets():
         # Fallback: return markets without order stats
         query = """
             SELECT location_id, location_code, name, lat, lon,
+                   currency_symbol,
                    0 AS active_orders, 0 AS drivers_out
             FROM simulator.locations_synced
             ORDER BY location_id
@@ -84,7 +86,7 @@ async def get_market_kpis(market_id: str):
 
     Returns: active_orders, drivers_out, avg_delivery_time, todays_revenue
     """
-    pool = await get_pool()
+    pool = await db.get_pool()
 
     # Filter to last 24h of simulator time so active counts exclude
     # loop-duplicate stale orders from prior quarters.
